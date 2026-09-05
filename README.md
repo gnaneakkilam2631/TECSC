@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Workbench — Shop Manager
 
 A web app for a computer sales & servicing shop: inventory/purchase records,
@@ -87,3 +88,7 @@ options:
 - Expense tracking (rent, electricity, etc.)
 - Stronger login security (hashed passwords, not plain text) before real
   deployment
+=======
+# TECSC
+Business management system for sales and services 
+>>>>>>> dbd8b06fc8d409ab1ff5ca85baa1c21ee55236fa

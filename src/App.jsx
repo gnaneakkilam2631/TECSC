@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LogOut, IndianRupee } from "lucide-react";
+import { LogOut, Cpu } from "lucide-react";
 import { storeGet, storeSet } from "./lib/storage.js";
 import Login from "./components/Login.jsx";
 import AdminApp from "./components/AdminApp.jsx";
@@ -70,10 +70,10 @@ export default function App() {
     <div className="min-h-screen">
       <header className="flex items-center justify-between px-5 py-3 row-line" style={{ background: "var(--surface)" }}>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded flex items-center justify-center" style={{ background: "var(--accent)" }}>
-            <IndianRupee size={14} color="#fff" />
+          <div className="w-7 h-7 rounded-full brand-badge flex items-center justify-center">
+            <Cpu size={14} color="#14161a" />
           </div>
-          <span className="font-semibold text-sm">Workbench</span>
+          <span className="font-semibold text-sm">TECSC</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm" style={{ color: "var(--ink-muted)" }}>

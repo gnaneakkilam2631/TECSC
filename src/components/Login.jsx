@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LogIn, IndianRupee, AlertCircle } from "lucide-react";
+import { LogIn, Cpu, AlertCircle } from "lucide-react";
 
 export default function Login({ users, onLogin }) {
   const [form, setForm] = useState({ username: "", password: "" });
@@ -19,21 +19,21 @@ export default function Login({ users, onLogin }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded flex items-center justify-center" style={{ background: "var(--accent)" }}>
-              <IndianRupee size={16} color="#fff" />
-            </div>
-            <h1 className="text-lg font-semibold">Workbench</h1>
+        <div className="mb-6 text-center">
+          <div className="w-14 h-14 rounded-full brand-badge flex items-center justify-center mx-auto mb-3">
+            <Cpu size={26} color="#14161a" />
           </div>
-          <p className="text-sm" style={{ color: "var(--ink-muted)" }}>
-            Shop records, attendance and payroll
+          <h1 className="text-xl font-semibold shine-text leading-tight">
+            Trinadh Electronics &amp;<br />Computer Servicing Centre
+          </h1>
+          <p className="text-sm mt-1" style={{ color: "var(--ink-muted)" }}>
+            TECSC · Purchases, attendance &amp; payroll
           </p>
         </div>
         <form
           onSubmit={handleSubmit}
           className="p-5"
-          style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}
+          style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
         >
           <label className="block text-sm mb-1" style={{ color: "var(--ink-muted)" }}>
             Username
