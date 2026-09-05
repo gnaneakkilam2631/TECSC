@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --ink: #16233d;
+  --ink-muted: #5b6472;
+  --accent: #2e7d6b;
+  --accent-soft: #e4f0ec;
+  --accent-ink: #1e5b4e;
+  --warn: #b3541e;
+  --warn-soft: #f5e6dc;
+  --gold: #b08a1e;
+  --gold-soft: #f3ecdb;
+  --border: #dce1e6;
+  --border-strong: #b9c1c9;
+}
+
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.btn {
+  border-radius: 4px;
+  font-weight: 500;
+  transition: background 0.12s ease;
+}
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-accent:hover {
+  background: var(--accent-ink);
+}
+.btn-outline {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+.btn-outline:hover {
+  background: var(--bg);
+}
+.input {
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.row-line {
+  border-bottom: 1px solid var(--border);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
