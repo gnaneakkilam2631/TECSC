@@ -1,8 +1,9 @@
 import { Check, AlertCircle } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, todayISO, monthSummary, STATUS_META } from "../lib/utils.js";
+import { api } from "../lib/api.js";
 
-export default function StaffApp({ session, staff, attendance, setAttendance }) {
+export default function StaffApp({ session, staff, attendance, refreshAll }) {
   const person = staff[session.staffId];
   const now = new Date();
   const today = todayISO();
@@ -20,7 +21,7 @@ export default function StaffApp({ session, staff, attendance, setAttendance }) 
   const sum = monthSummary(attendance, staff, session.staffId, now.getFullYear(), now.getMonth());
 
   function markToday() {
-    setAttendance({ ...attendance, [todayKey]: "present" });
+    api.setAttendance(session.staffId, today, "present").then(refreshAll);
   }
 
   return (

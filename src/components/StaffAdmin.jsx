@@ -2,10 +2,9 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, uid } from "../lib/utils.js";
+import { api } from "../lib/api.js";
 
-const API = "http://localhost:4000/api";
-
-export default function StaffAdmin({ staff, setStaff }) {
+export default function StaffAdmin({ staff, refreshAll }) {
   const [form, setForm] = useState({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -15,26 +14,20 @@ export default function StaffAdmin({ staff, setStaff }) {
     setError("");
     if (!form.name || !form.baseSalary || !form.username || !form.password) return;
 
-    const id = uid("staff");
     setBusy(true);
     try {
-      const res = await fetch(`${API}/create-staff-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: form.username, password: form.password, staffId: id }),
+      await api.createStaff({
+        username: form.username,
+        password: form.password,
+        staffId: uid("staff"),
+        name: form.name,
+        baseSalary: Number(form.baseSalary),
+        paidLeaveQuota: Number(form.paidLeaveQuota),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Could not create login.");
-        return;
-      }
-      setStaff({
-        ...staff,
-        [id]: { name: form.name, baseSalary: Number(form.baseSalary), paidLeaveQuota: Number(form.paidLeaveQuota) },
-      });
+      await refreshAll();
       setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
     } catch (err) {
-      setError("Couldn't reach the server. Is the backend running?");
+      setError(err.message || "Could not add staff.");
     } finally {
       setBusy(false);
     }

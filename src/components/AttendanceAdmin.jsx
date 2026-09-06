@@ -1,15 +1,17 @@
 import { useState } from "react";
 import SectionHeader from "./SectionHeader.jsx";
 import { todayISO, STATUS_META } from "../lib/utils.js";
+import { api } from "../lib/api.js";
 
-export default function AttendanceAdmin({ staff, attendance, setAttendance }) {
+export default function AttendanceAdmin({ staff, attendance, refreshAll }) {
   const [date, setDate] = useState(todayISO());
-  const staffList = Object.entries(staff);
 
-  function setStatus(staffId, status) {
-    const key = `${staffId}:${date}`;
-    setAttendance({ ...attendance, [key]: status });
+  async function setStatus(staffId, status) {
+    await api.setAttendance(staffId, date, status);
+    await refreshAll();
   }
+
+  const staffList = Object.entries(staff);
 
   return (
     <div>

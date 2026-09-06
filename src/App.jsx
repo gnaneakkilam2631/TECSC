@@ -1,39 +1,38 @@
 import { useState, useEffect } from "react";
 import { LogOut, Cpu } from "lucide-react";
-import { storeGet, storeSet } from "./lib/storage.js";
+import { api } from "./lib/api.js";
 import Login from "./components/Login.jsx";
 import AdminApp from "./components/AdminApp.jsx";
 import StaffApp from "./components/StaffApp.jsx";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
-  const [staff, setStaffState] = useState({});
-  const [attendance, setAttendanceState] = useState({});
-  const [items, setItemsState] = useState([]);
+  const [staff, setStaff] = useState({});
+  const [attendance, setAttendance] = useState({});
+  const [items, setItems] = useState([]);
+  const [repairs, setRepairs] = useState([]);
   const [session, setSession] = useState(null);
   const [tab, setTab] = useState("dashboard");
 
+  async function refreshAll() {
+    const [s, a, i, r] = await Promise.all([api.getStaff(), api.getAttendance(), api.getItems(), api.getRepairs()]);
+    setStaff(s);
+    setAttendance(a);
+    setItems(i);
+    setRepairs(r);
+  }
+
   useEffect(() => {
     (async () => {
-      setStaffState(await storeGet("staff", {}));
-      setAttendanceState(await storeGet("attendance", {}));
-      setItemsState(await storeGet("items", []));
-      setLoading(false);
+      try {
+        await refreshAll();
+      } catch (e) {
+        console.error("Failed to load data from server:", e);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
-
-  async function setStaff(next) {
-    setStaffState(next);
-    await storeSet("staff", next);
-  }
-  async function setAttendance(next) {
-    setAttendanceState(next);
-    await storeSet("attendance", next);
-  }
-  async function setItems(next) {
-    setItemsState(next);
-    await storeSet("items", next);
-  }
 
   function handleLogin(newSession) {
     setSession(newSession);
@@ -79,14 +78,13 @@ export default function App() {
           tab={tab}
           setTab={setTab}
           staff={staff}
-          setStaff={setStaff}
           attendance={attendance}
-          setAttendance={setAttendance}
           items={items}
-          setItems={setItems}
+          repairs={repairs}
+          refreshAll={refreshAll}
         />
       ) : (
-        <StaffApp session={session} staff={staff} attendance={attendance} setAttendance={setAttendance} />
+        <StaffApp session={session} staff={staff} attendance={attendance} refreshAll={refreshAll} />
       )}
     </div>
   );

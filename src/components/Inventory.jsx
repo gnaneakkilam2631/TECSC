@@ -2,19 +2,36 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, todayISO, uid } from "../lib/utils.js";
+import { api } from "../lib/api.js";
 
-export default function Inventory({ items, setItems }) {
+export default function Inventory({ items, refreshAll }) {
   const [form, setForm] = useState({ name: "", qty: 1, costPrice: "", supplier: "", date: todayISO() });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function addItem(e) {
+  async function addItem(e) {
     e.preventDefault();
+    setError("");
     if (!form.name || !form.costPrice) return;
-    setItems([{ id: uid("item"), ...form, qty: Number(form.qty), costPrice: Number(form.costPrice) }, ...items]);
-    setForm({ name: "", qty: 1, costPrice: "", supplier: "", date: todayISO() });
+    setBusy(true);
+    try {
+      await api.addItem({ id: uid("item"), ...form, qty: Number(form.qty), costPrice: Number(form.costPrice) });
+      await refreshAll();
+      setForm({ name: "", qty: 1, costPrice: "", supplier: "", date: todayISO() });
+    } catch (err) {
+      setError(err.message || "Could not add item.");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function removeItem(id) {
-    setItems(items.filter((i) => i.id !== id));
+  async function removeItem(id) {
+    try {
+      await api.deleteItem(id);
+      await refreshAll();
+    } catch (err) {
+      setError(err.message || "Could not remove item.");
+    }
   }
 
   return (
@@ -22,7 +39,7 @@ export default function Inventory({ items, setItems }) {
       <SectionHeader title="Inventory & purchases" sub="Items bought in for the shop" />
       <form
         onSubmit={addItem}
-        className="flex flex-wrap gap-2 mb-5 p-4"
+        className="flex flex-wrap gap-2 mb-2 p-4"
         style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}
       >
         <input className="input px-2 py-1.5 text-sm flex-1 min-w-[140px]" placeholder="Item name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -30,10 +47,15 @@ export default function Inventory({ items, setItems }) {
         <input className="input px-2 py-1.5 text-sm w-28" type="number" placeholder="Cost price" value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-36" placeholder="Supplier" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-36" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-        <button className="btn btn-accent px-3 py-1.5 text-sm flex items-center gap-1">
-          <Plus size={14} /> Add
+        <button disabled={busy} className="btn btn-accent px-3 py-1.5 text-sm flex items-center gap-1">
+          <Plus size={14} /> {busy ? "Adding…" : "Add"}
         </button>
       </form>
+      {error && (
+        <p className="text-sm mb-3" style={{ color: "var(--warn)" }}>
+          {error}
+        </p>
+      )}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
         <div className="grid grid-cols-6 gap-2 px-4 py-2 text-xs font-medium row-line" style={{ color: "var(--ink-muted)" }}>
           <span className="col-span-2">Item</span>

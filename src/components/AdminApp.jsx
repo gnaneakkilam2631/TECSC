@@ -1,9 +1,10 @@
-import { IndianRupee, Package, Users, CalendarCheck } from "lucide-react";
+import { IndianRupee, Package, Users, CalendarCheck, Wrench } from "lucide-react";
 import Dashboard from "./Dashboard.jsx";
 import Inventory from "./Inventory.jsx";
 import StaffAdmin from "./StaffAdmin.jsx";
 import AttendanceAdmin from "./AttendanceAdmin.jsx";
 import SalaryReport from "./SalaryReport.jsx";
+import RepairAdmin from "./RepairAdmin.jsx";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: IndianRupee },
@@ -11,9 +12,10 @@ const TABS = [
   { id: "staff", label: "Staff", icon: Users },
   { id: "attendance", label: "Attendance", icon: CalendarCheck },
   { id: "salary", label: "Salary", icon: IndianRupee },
+  { id: "repairs", label: "Repairs", icon: Wrench },
 ];
 
-export default function AdminApp({ tab, setTab, staff, setStaff, users, setUsers, attendance, setAttendance, items, setItems }) {
+export default function AdminApp({ tab, setTab, staff, attendance, items, repairs, refreshAll }) {
   return (
     <div className="flex flex-col md:flex-row">
       <nav
@@ -36,11 +38,12 @@ export default function AdminApp({ tab, setTab, staff, setStaff, users, setUsers
         })}
       </nav>
       <main className="flex-1 p-5">
-        {tab === "dashboard" && <Dashboard staff={staff} items={items} attendance={attendance} />}
-        {tab === "inventory" && <Inventory items={items} setItems={setItems} />}
-        {tab === "staff" && <StaffAdmin staff={staff} setStaff={setStaff} users={users} setUsers={setUsers} />}
-        {tab === "attendance" && <AttendanceAdmin staff={staff} attendance={attendance} setAttendance={setAttendance} />}
+        {tab === "dashboard" && <Dashboard staff={staff} items={items} attendance={attendance} repairs={repairs} />}
+        {tab === "inventory" && <Inventory items={items} refreshAll={refreshAll} />}
+        {tab === "staff" && <StaffAdmin staff={staff} refreshAll={refreshAll} />}
+        {tab === "attendance" && <AttendanceAdmin staff={staff} attendance={attendance} refreshAll={refreshAll} />}
         {tab === "salary" && <SalaryReport staff={staff} attendance={attendance} />}
+        {tab === "repairs" && <RepairAdmin repairs={repairs} refreshAll={refreshAll} />}
       </main>
     </div>
   );
