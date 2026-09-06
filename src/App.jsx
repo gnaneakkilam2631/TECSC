@@ -7,7 +7,6 @@ import StaffApp from "./components/StaffApp.jsx";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
-  const [users, setUsersState] = useState({});
   const [staff, setStaffState] = useState({});
   const [attendance, setAttendanceState] = useState({});
   const [items, setItemsState] = useState([]);
@@ -16,12 +15,6 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      let u = await storeGet("users", null);
-      if (!u) {
-        u = { admin: { password: "admin123", role: "admin" } };
-        await storeSet("users", u);
-      }
-      setUsersState(u);
       setStaffState(await storeGet("staff", {}));
       setAttendanceState(await storeGet("attendance", {}));
       setItemsState(await storeGet("items", []));
@@ -29,10 +22,6 @@ export default function App() {
     })();
   }, []);
 
-  async function setUsers(next) {
-    setUsersState(next);
-    await storeSet("users", next);
-  }
   async function setStaff(next) {
     setStaffState(next);
     await storeSet("staff", next);
@@ -63,7 +52,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login users={users} onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} />;
   }
 
   return (
@@ -91,8 +80,6 @@ export default function App() {
           setTab={setTab}
           staff={staff}
           setStaff={setStaff}
-          users={users}
-          setUsers={setUsers}
           attendance={attendance}
           setAttendance={setAttendance}
           items={items}

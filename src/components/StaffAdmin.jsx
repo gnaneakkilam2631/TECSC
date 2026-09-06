@@ -3,20 +3,41 @@ import { Plus } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, uid } from "../lib/utils.js";
 
-export default function StaffAdmin({ staff, setStaff, users, setUsers }) {
-  const [form, setForm] = useState({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
+const API = "http://localhost:4000/api";
 
-  function addStaff(e) {
+export default function StaffAdmin({ staff, setStaff }) {
+  const [form, setForm] = useState({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function addStaff(e) {
     e.preventDefault();
+    setError("");
     if (!form.name || !form.baseSalary || !form.username || !form.password) return;
-    if (users[form.username]) {
-      alert("That username is already taken.");
-      return;
-    }
+
     const id = uid("staff");
-    setStaff({ ...staff, [id]: { name: form.name, baseSalary: Number(form.baseSalary), paidLeaveQuota: Number(form.paidLeaveQuota) } });
-    setUsers({ ...users, [form.username]: { password: form.password, role: "staff", staffId: id } });
-    setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
+    setBusy(true);
+    try {
+      const res = await fetch(`${API}/create-staff-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: form.username, password: form.password, staffId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not create login.");
+        return;
+      }
+      setStaff({
+        ...staff,
+        [id]: { name: form.name, baseSalary: Number(form.baseSalary), paidLeaveQuota: Number(form.paidLeaveQuota) },
+      });
+      setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
+    } catch (err) {
+      setError("Couldn't reach the server. Is the backend running?");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -24,7 +45,7 @@ export default function StaffAdmin({ staff, setStaff, users, setUsers }) {
       <SectionHeader title="Staff" sub="Add staff, set their salary and leave allowance, and create their login" />
       <form
         onSubmit={addStaff}
-        className="flex flex-wrap gap-2 mb-5 p-4"
+        className="flex flex-wrap gap-2 mb-2 p-4"
         style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}
       >
         <input className="input px-2 py-1.5 text-sm w-36" placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -32,10 +53,15 @@ export default function StaffAdmin({ staff, setStaff, users, setUsers }) {
         <input className="input px-2 py-1.5 text-sm w-28" type="number" placeholder="Paid leaves/mo" value={form.paidLeaveQuota} onChange={(e) => setForm({ ...form, paidLeaveQuota: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-28" placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-28" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        <button className="btn btn-accent px-3 py-1.5 text-sm flex items-center gap-1">
-          <Plus size={14} /> Add staff
+        <button disabled={busy} className="btn btn-accent px-3 py-1.5 text-sm flex items-center gap-1">
+          <Plus size={14} /> {busy ? "Adding…" : "Add staff"}
         </button>
       </form>
+      {error && (
+        <p className="text-sm mb-3" style={{ color: "var(--warn)" }}>
+          {error}
+        </p>
+      )}
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
         {Object.keys(staff).length === 0 && (
           <p className="p-4 text-sm" style={{ color: "var(--ink-muted)" }}>
