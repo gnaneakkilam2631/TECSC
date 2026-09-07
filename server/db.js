@@ -37,6 +37,7 @@ export async function ensureTables() {
       paid_leave_quota INTEGER NOT NULL DEFAULT 2
     );
   `);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS expected_hours_per_day NUMERIC NOT NULL DEFAULT 8;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS items (
       id TEXT PRIMARY KEY,
@@ -47,12 +48,23 @@ export async function ensureTables() {
       date DATE NOT NULL
     );
   `);
+  await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS selling_price NUMERIC;`);
+  await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;`);
+  await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS paid BOOLEAN NOT NULL DEFAULT false;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS attendance (
       staff_id TEXT NOT NULL,
       date DATE NOT NULL,
       status TEXT NOT NULL,
       PRIMARY KEY (staff_id, date)
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS time_logs (
+      id SERIAL PRIMARY KEY,
+      staff_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      logged_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
   await pool.query(`
@@ -66,6 +78,29 @@ export async function ensureTables() {
       cost NUMERIC,
       date_in DATE NOT NULL,
       date_out DATE,
+      notes TEXT
+    );
+  `);
+  await pool.query(`ALTER TABLE repairs ADD COLUMN IF NOT EXISTS warranty_days INTEGER NOT NULL DEFAULT 0;`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sales (
+      id TEXT PRIMARY KEY,
+      item_id TEXT,
+      item_name TEXT NOT NULL,
+      qty INTEGER NOT NULL,
+      unit_price NUMERIC NOT NULL,
+      total NUMERIC NOT NULL,
+      customer_name TEXT,
+      customer_phone TEXT,
+      date DATE NOT NULL
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id TEXT PRIMARY KEY,
+      category TEXT NOT NULL,
+      amount NUMERIC NOT NULL,
+      date DATE NOT NULL,
       notes TEXT
     );
   `);

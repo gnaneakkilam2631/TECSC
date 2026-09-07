@@ -9,16 +9,30 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState({});
   const [attendance, setAttendance] = useState({});
+  const [timeLogs, setTimeLogs] = useState([]);
   const [items, setItems] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [repairs, setRepairs] = useState([]);
   const [session, setSession] = useState(null);
   const [tab, setTab] = useState("dashboard");
 
   async function refreshAll() {
-    const [s, a, i, r] = await Promise.all([api.getStaff(), api.getAttendance(), api.getItems(), api.getRepairs()]);
+    const [s, a, tl, i, sa, ex, r] = await Promise.all([
+      api.getStaff(),
+      api.getAttendance(),
+      api.getTimeLogs(),
+      api.getItems(),
+      api.getSales(),
+      api.getExpenses(),
+      api.getRepairs(),
+    ]);
     setStaff(s);
     setAttendance(a);
+    setTimeLogs(tl);
     setItems(i);
+    setSales(sa);
+    setExpenses(ex);
     setRepairs(r);
   }
 
@@ -79,12 +93,15 @@ export default function App() {
           setTab={setTab}
           staff={staff}
           attendance={attendance}
+          timeLogs={timeLogs}
           items={items}
+          sales={sales}
+          expenses={expenses}
           repairs={repairs}
           refreshAll={refreshAll}
         />
       ) : (
-        <StaffApp session={session} staff={staff} attendance={attendance} refreshAll={refreshAll} />
+        <StaffApp session={session} staff={staff} attendance={attendance} timeLogs={timeLogs} refreshAll={refreshAll} />
       )}
     </div>
   );

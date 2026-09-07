@@ -77,7 +77,7 @@ app.post("/api/reset-password", async (req, res) => {
 });
 
 app.post("/api/create-staff-login", async (req, res) => {
-  const { username, password, staffId, name, baseSalary, paidLeaveQuota } = req.body;
+  const { username, password, staffId, name, baseSalary, paidLeaveQuota, expectedHoursPerDay } = req.body;
   if (!username || !password || !staffId || !name || baseSalary == null) {
     return res.status(400).json({ error: "Missing fields." });
   }
@@ -91,12 +91,10 @@ app.post("/api/create-staff-login", async (req, res) => {
     hash,
     staffId,
   ]);
-  await pool.query("INSERT INTO staff (id, name, base_salary, paid_leave_quota) VALUES ($1, $2, $3, $4)", [
-    staffId,
-    name,
-    baseSalary,
-    paidLeaveQuota ?? 2,
-  ]);
+  await pool.query(
+    "INSERT INTO staff (id, name, base_salary, paid_leave_quota, expected_hours_per_day) VALUES ($1, $2, $3, $4, $5)",
+    [staffId, name, baseSalary, paidLeaveQuota ?? 2, expectedHoursPerDay ?? 8]
+  );
   res.json({ message: "Staff login created." });
 });
 
@@ -104,7 +102,12 @@ app.get("/api/staff", async (req, res) => {
   const result = await pool.query("SELECT * FROM staff");
   const staff = {};
   for (const row of result.rows) {
-    staff[row.id] = { name: row.name, baseSalary: Number(row.base_salary), paidLeaveQuota: row.paid_leave_quota };
+    staff[row.id] = {
+      name: row.name,
+      baseSalary: Number(row.base_salary),
+      paidLeaveQuota: row.paid_leave_quota,
+      expectedHoursPerDay: Number(row.expected_hours_per_day),
+    };
   }
   res.json(staff);
 });
@@ -116,29 +119,117 @@ app.get("/api/items", async (req, res) => {
     name: r.name,
     qty: r.qty,
     costPrice: Number(r.cost_price),
+    sellingPrice: r.selling_price != null ? Number(r.selling_price) : null,
     supplier: r.supplier,
     date: r.date.toISOString().slice(0, 10),
+    lowStockThreshold: r.low_stock_threshold,
+    paid: r.paid,
   }));
   res.json(items);
 });
 
 app.post("/api/items", async (req, res) => {
-  const { id, name, qty, costPrice, supplier, date } = req.body;
+  const { id, name, qty, costPrice, sellingPrice, supplier, date, lowStockThreshold } = req.body;
   if (!id || !name || !qty || costPrice == null || !date) return res.status(400).json({ error: "Missing fields." });
-  await pool.query("INSERT INTO items (id, name, qty, cost_price, supplier, date) VALUES ($1,$2,$3,$4,$5,$6)", [
-    id,
-    name,
-    qty,
-    costPrice,
-    supplier || null,
-    date,
-  ]);
+  await pool.query(
+    "INSERT INTO items (id, name, qty, cost_price, selling_price, supplier, date, low_stock_threshold) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+    [id, name, qty, costPrice, sellingPrice ?? null, supplier || null, date, lowStockThreshold ?? 5]
+  );
   res.json({ message: "Item added." });
+});
+
+app.put("/api/items/:id", async (req, res) => {
+  const { qty, paid, lowStockThreshold } = req.body;
+  await pool.query(
+    `UPDATE items SET
+       qty = COALESCE($1, qty),
+       paid = COALESCE($2, paid),
+       low_stock_threshold = COALESCE($3, low_stock_threshold)
+     WHERE id = $4`,
+    [qty ?? null, paid ?? null, lowStockThreshold ?? null, req.params.id]
+  );
+  res.json({ message: "Item updated." });
 });
 
 app.delete("/api/items/:id", async (req, res) => {
   await pool.query("DELETE FROM items WHERE id = $1", [req.params.id]);
   res.json({ message: "Item removed." });
+});
+
+app.get("/api/sales", async (req, res) => {
+  const result = await pool.query("SELECT * FROM sales ORDER BY date DESC, id DESC");
+  const sales = result.rows.map((r) => ({
+    id: r.id,
+    itemId: r.item_id,
+    itemName: r.item_name,
+    qty: r.qty,
+    unitPrice: Number(r.unit_price),
+    total: Number(r.total),
+    customerName: r.customer_name,
+    customerPhone: r.customer_phone,
+    date: r.date.toISOString().slice(0, 10),
+  }));
+  res.json(sales);
+});
+
+app.post("/api/sales", async (req, res) => {
+  const { id, itemId, itemName, qty, unitPrice, customerName, customerPhone, date } = req.body;
+  if (!id || !itemName || !qty || unitPrice == null || !date) return res.status(400).json({ error: "Missing fields." });
+  const total = qty * unitPrice;
+  await pool.query(
+    "INSERT INTO sales (id, item_id, item_name, qty, unit_price, total, customer_name, customer_phone, date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+    [id, itemId || null, itemName, qty, unitPrice, total, customerName || null, customerPhone || null, date]
+  );
+  if (itemId) {
+    await pool.query("UPDATE items SET qty = GREATEST(qty - $1, 0) WHERE id = $2", [qty, itemId]);
+  }
+  res.json({ message: "Sale recorded." });
+});
+
+app.get("/api/expenses", async (req, res) => {
+  const result = await pool.query("SELECT * FROM expenses ORDER BY date DESC, id DESC");
+  const expenses = result.rows.map((r) => ({
+    id: r.id,
+    category: r.category,
+    amount: Number(r.amount),
+    date: r.date.toISOString().slice(0, 10),
+    notes: r.notes,
+  }));
+  res.json(expenses);
+});
+
+app.post("/api/expenses", async (req, res) => {
+  const { id, category, amount, date, notes } = req.body;
+  if (!id || !category || amount == null || !date) return res.status(400).json({ error: "Missing fields." });
+  await pool.query("INSERT INTO expenses (id, category, amount, date, notes) VALUES ($1,$2,$3,$4,$5)", [
+    id,
+    category,
+    amount,
+    date,
+    notes || null,
+  ]);
+  res.json({ message: "Expense added." });
+});
+
+app.delete("/api/expenses/:id", async (req, res) => {
+  await pool.query("DELETE FROM expenses WHERE id = $1", [req.params.id]);
+  res.json({ message: "Expense removed." });
+});
+
+app.post("/api/time-log", async (req, res) => {
+  const { staffId, type } = req.body;
+  if (!staffId || !["in", "out"].includes(type)) return res.status(400).json({ error: "Missing or invalid fields." });
+  const result = await pool.query(
+    "INSERT INTO time_logs (staff_id, event_type) VALUES ($1, $2) RETURNING logged_at",
+    [staffId, type]
+  );
+  res.json({ loggedAt: result.rows[0].logged_at });
+});
+
+app.get("/api/time-logs", async (req, res) => {
+  const result = await pool.query("SELECT * FROM time_logs ORDER BY logged_at ASC");
+  const logs = result.rows.map((r) => ({ id: r.id, staffId: r.staff_id, type: r.event_type, loggedAt: r.logged_at }));
+  res.json(logs);
 });
 
 app.get("/api/attendance", async (req, res) => {
@@ -152,7 +243,11 @@ app.get("/api/attendance", async (req, res) => {
 
 app.post("/api/attendance", async (req, res) => {
   const { staffId, date, status } = req.body;
-  if (!staffId || !date || !status) return res.status(400).json({ error: "Missing fields." });
+  if (!staffId || !date) return res.status(400).json({ error: "Missing fields." });
+  if (!status) {
+    await pool.query("DELETE FROM attendance WHERE staff_id = $1 AND date = $2", [staffId, date]);
+    return res.json({ message: "Attendance override cleared." });
+  }
   await pool.query(
     `INSERT INTO attendance (staff_id, date, status) VALUES ($1, $2, $3)
      ON CONFLICT (staff_id, date) DO UPDATE SET status = EXCLUDED.status`,
@@ -173,6 +268,7 @@ app.get("/api/repairs", async (req, res) => {
     cost: r.cost != null ? Number(r.cost) : null,
     dateIn: r.date_in.toISOString().slice(0, 10),
     dateOut: r.date_out ? r.date_out.toISOString().slice(0, 10) : null,
+    warrantyDays: r.warranty_days,
     notes: r.notes,
   }));
   res.json(repairs);
@@ -190,15 +286,16 @@ app.post("/api/repairs", async (req, res) => {
 });
 
 app.put("/api/repairs/:id", async (req, res) => {
-  const { status, cost, dateOut, notes } = req.body;
+  const { status, cost, dateOut, notes, warrantyDays } = req.body;
   await pool.query(
     `UPDATE repairs SET
        status = COALESCE($1, status),
        cost = COALESCE($2, cost),
        date_out = COALESCE($3, date_out),
-       notes = COALESCE($4, notes)
-     WHERE id = $5`,
-    [status || null, cost ?? null, dateOut || null, notes ?? null, req.params.id]
+       notes = COALESCE($4, notes),
+       warranty_days = COALESCE($5, warranty_days)
+     WHERE id = $6`,
+    [status || null, cost ?? null, dateOut || null, notes ?? null, warrantyDays ?? null, req.params.id]
   );
   res.json({ message: "Repair job updated." });
 });

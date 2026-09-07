@@ -5,7 +5,14 @@ import { fmtMoney, uid } from "../lib/utils.js";
 import { api } from "../lib/api.js";
 
 export default function StaffAdmin({ staff, refreshAll }) {
-  const [form, setForm] = useState({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
+  const [form, setForm] = useState({
+    name: "",
+    baseSalary: "",
+    paidLeaveQuota: 2,
+    expectedHoursPerDay: 8,
+    username: "",
+    password: "",
+  });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -23,9 +30,10 @@ export default function StaffAdmin({ staff, refreshAll }) {
         name: form.name,
         baseSalary: Number(form.baseSalary),
         paidLeaveQuota: Number(form.paidLeaveQuota),
+        expectedHoursPerDay: Number(form.expectedHoursPerDay),
       });
       await refreshAll();
-      setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, username: "", password: "" });
+      setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, expectedHoursPerDay: 8, username: "", password: "" });
     } catch (err) {
       setError(err.message || "Could not add staff.");
     } finally {
@@ -35,7 +43,7 @@ export default function StaffAdmin({ staff, refreshAll }) {
 
   return (
     <div>
-      <SectionHeader title="Staff" sub="Add staff, set their salary and leave allowance, and create their login" />
+      <SectionHeader title="Staff" sub="Add staff, set their salary, expected hours, and leave allowance, and create their login" />
       <form
         onSubmit={addStaff}
         className="flex flex-wrap gap-2 mb-2 p-4"
@@ -43,6 +51,7 @@ export default function StaffAdmin({ staff, refreshAll }) {
       >
         <input className="input px-2 py-1.5 text-sm w-36" placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-32" type="number" placeholder="Monthly salary" value={form.baseSalary} onChange={(e) => setForm({ ...form, baseSalary: e.target.value })} />
+        <input className="input px-2 py-1.5 text-sm w-28" type="number" step="0.5" placeholder="Hours/day" value={form.expectedHoursPerDay} onChange={(e) => setForm({ ...form, expectedHoursPerDay: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-28" type="number" placeholder="Paid leaves/mo" value={form.paidLeaveQuota} onChange={(e) => setForm({ ...form, paidLeaveQuota: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-28" placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-28" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
@@ -65,7 +74,7 @@ export default function StaffAdmin({ staff, refreshAll }) {
           <div key={id} className="flex items-center justify-between px-4 py-3 row-line text-sm">
             <span className="font-medium">{s.name}</span>
             <span className="mono" style={{ color: "var(--ink-muted)" }}>
-              {fmtMoney(s.baseSalary)}/mo · {s.paidLeaveQuota} paid leaves
+              {fmtMoney(s.baseSalary)}/mo · {s.expectedHoursPerDay}h/day · {s.paidLeaveQuota} paid leaves
             </span>
           </div>
         ))}

@@ -16,11 +16,22 @@ export const api = {
 
   getItems: () => request("/items"),
   addItem: (item) => request("/items", { method: "POST", body: JSON.stringify(item) }),
+  updateItem: (id, updates) => request(`/items/${id}`, { method: "PUT", body: JSON.stringify(updates) }),
   deleteItem: (id) => request(`/items/${id}`, { method: "DELETE" }),
+
+  getSales: () => request("/sales"),
+  addSale: (sale) => request("/sales", { method: "POST", body: JSON.stringify(sale) }),
+
+  getExpenses: () => request("/expenses"),
+  addExpense: (expense) => request("/expenses", { method: "POST", body: JSON.stringify(expense) }),
+  deleteExpense: (id) => request(`/expenses/${id}`, { method: "DELETE" }),
 
   getAttendance: () => request("/attendance"),
   setAttendance: (staffId, date, status) =>
     request("/attendance", { method: "POST", body: JSON.stringify({ staffId, date, status }) }),
+
+  getTimeLogs: () => request("/time-logs"),
+  logTime: (staffId, type) => request("/time-log", { method: "POST", body: JSON.stringify({ staffId, type }) }),
 
   getRepairs: () => request("/repairs"),
   addRepair: (repair) => request("/repairs", { method: "POST", body: JSON.stringify(repair) }),
