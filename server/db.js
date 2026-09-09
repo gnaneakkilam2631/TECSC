@@ -104,4 +104,23 @@ export async function ensureTables() {
       notes TEXT
     );
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rentals (
+      id TEXT PRIMARY KEY,
+      item_name TEXT NOT NULL,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT,
+      rent_out_date DATE NOT NULL,
+      return_date DATE,
+      amount_paid NUMERIC NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'rented',
+      notes TEXT
+    );
+  `);
 }

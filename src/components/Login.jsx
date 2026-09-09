@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LogIn, Cpu, AlertCircle, CheckCircle2, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { api } from "../lib/api.js";
 
 const API = "http://localhost:4000/api";
 
 export default function Login({ onLogin }) {
-  const [mode, setMode] = useState("login"); // "login" | "forgot" | "reset"
+  const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ username: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [forgotUsername, setForgotUsername] = useState("");
@@ -12,6 +13,13 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [settings, setSettings] = useState({});
+
+  useEffect(() => {
+    api.getSettings().then(setSettings).catch(() => {});
+  }, []);
+
+  const shopName = settings.shopName || "Trinadh Electronics & Computer Servicing Centre";
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -90,19 +98,23 @@ export default function Login({ onLogin }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <div className="w-14 h-14 rounded-full brand-badge flex items-center justify-center mx-auto mb-3">
-            <Cpu size={26} color="#14161a" />
+        <div className="mb-8 text-center">
+          <div className="w-20 h-20 rounded-full brand-badge flex items-center justify-center mx-auto mb-4 overflow-hidden">
+            {settings.logo ? (
+              <img src={settings.logo} alt="Logo" className="w-full h-full object-cover" />
+            ) : (
+              <Cpu size={36} color="#14161a" />
+            )}
           </div>
-          <h1 className="text-xl font-semibold shine-text leading-tight">
-            Trinadh Electronics &amp;<br />Computer Servicing Centre
+          <h1 className="shine-text leading-tight" style={{ fontSize: "1.9rem", fontWeight: 800, letterSpacing: "-0.02em" }}>
+            {shopName}
           </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--ink-muted)" }}>
-            TECSC · Purchases, attendance &amp; payroll
+          <p className="text-sm mt-2 tracking-wide" style={{ color: "var(--ink-muted)" }}>
+            PURCHASES · ATTENDANCE · PAYROLL
           </p>
         </div>
 
-        <div className="p-5" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}>
+        <div className="p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, boxShadow: "0 8px 30px rgba(0,0,0,0.35)" }}>
           {mode === "login" && (
             <form onSubmit={handleLogin}>
               <label className="block text-sm mb-1" style={{ color: "var(--ink-muted)" }}>Username or email</label>
@@ -152,7 +164,7 @@ export default function Login({ onLogin }) {
                   <CheckCircle2 size={14} /> {info}
                 </p>
               )}
-              <button type="submit" disabled={busy} className="btn btn-accent w-full py-2 text-sm flex items-center justify-center gap-2">
+              <button type="submit" disabled={busy} className="btn btn-accent w-full py-2.5 text-sm flex items-center justify-center gap-2">
                 <LogIn size={15} /> {busy ? "Signing in…" : "Sign in"}
               </button>
             </form>

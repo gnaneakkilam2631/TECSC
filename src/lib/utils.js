@@ -25,6 +25,8 @@ export const STATUS_META = {
   leave: { label: "On leave", color: "var(--ink-muted)" },
 };
 
+const WORKING_DAYS_PER_MONTH = 30;
+
 function dateKey(d) {
   return d.toISOString().slice(0, 10);
 }
@@ -77,14 +79,19 @@ export function todaySessions(timeLogs, staffId) {
   return sessions;
 }
 
+// Salary rule (fixed, as set by the shop):
+//   1 day's salary  = monthly salary ÷ 30
+//   1 hour's salary = that day's salary ÷ expected hours per day (default 9)
+// A day with fewer hours worked than expected loses pay for the missing
+// hours; a day with no clock-in at all loses a full day's pay.
 export function monthSummary(attendance, timeLogs, staff, staffId, year, month) {
   const total = daysInMonth(year, month);
   const person = staff[staffId];
   const baseSalary = person?.baseSalary || 0;
   const quota = person?.paidLeaveQuota ?? 2;
-  const expectedHours = person?.expectedHoursPerDay ?? 8;
+  const expectedHours = person?.expectedHoursPerDay ?? 9;
 
-  const dailyWage = baseSalary / total;
+  const dailyWage = baseSalary / WORKING_DAYS_PER_MONTH;
   const hourlyRate = expectedHours > 0 ? dailyWage / expectedHours : 0;
 
   let present = 0,

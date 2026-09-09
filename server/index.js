@@ -9,7 +9,7 @@ import { sendResetCodeEmail } from "./mailer.js";
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 
 function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -93,7 +93,7 @@ app.post("/api/create-staff-login", async (req, res) => {
   ]);
   await pool.query(
     "INSERT INTO staff (id, name, base_salary, paid_leave_quota, expected_hours_per_day) VALUES ($1, $2, $3, $4, $5)",
-    [staffId, name, baseSalary, paidLeaveQuota ?? 2, expectedHoursPerDay ?? 8]
+    [staffId, name, baseSalary, paidLeaveQuota ?? 2, expectedHoursPerDay ?? 9]
   );
   res.json({ message: "Staff login created." });
 });
@@ -216,6 +216,86 @@ app.delete("/api/expenses/:id", async (req, res) => {
   res.json({ message: "Expense removed." });
 });
 
+app.get("/api/settings", async (req, res) => {
+  const result = await pool.query("SELECT * FROM settings");
+  const settings = {};
+  for (const row of result.rows) settings[row.key] = row.value;
+  res.json(settings);
+});
+
+app.post("/api/settings", async (req, res) => {
+  const { key, value } = req.body;
+  if (!key) return res.status(400).json({ error: "Missing key." });
+  await pool.query(
+    `INSERT INTO settings (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [key, value ?? null]
+  );
+  res.json({ message: "Setting saved." });
+});
+
+app.post("/api/change-password", async (req, res) => {
+  const { username, currentPassword, newPassword } = req.body;
+  if (!username || !currentPassword || !newPassword) return res.status(400).json({ error: "Missing fields." });
+
+  const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
+  const user = result.rows[0];
+  if (!user) return res.status(400).json({ error: "Account not found." });
+
+  const ok = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!ok) return res.status(401).json({ error: "Current password is incorrect." });
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  await pool.query("UPDATE users SET password_hash = $1 WHERE username = $2", [hash, username]);
+  res.json({ message: "Password changed." });
+});
+
+app.get("/api/rentals", async (req, res) => {
+  const result = await pool.query("SELECT * FROM rentals ORDER BY rent_out_date DESC, id DESC");
+  const rentals = result.rows.map((r) => ({
+    id: r.id,
+    itemName: r.item_name,
+    customerName: r.customer_name,
+    customerPhone: r.customer_phone,
+    rentOutDate: r.rent_out_date.toISOString().slice(0, 10),
+    returnDate: r.return_date ? r.return_date.toISOString().slice(0, 10) : null,
+    amountPaid: Number(r.amount_paid),
+    status: r.status,
+    notes: r.notes,
+  }));
+  res.json(rentals);
+});
+
+app.post("/api/rentals", async (req, res) => {
+  const { id, itemName, customerName, customerPhone, rentOutDate, amountPaid } = req.body;
+  if (!id || !itemName || !customerName || !rentOutDate) return res.status(400).json({ error: "Missing fields." });
+  await pool.query(
+    "INSERT INTO rentals (id, item_name, customer_name, customer_phone, rent_out_date, amount_paid, status) VALUES ($1,$2,$3,$4,$5,$6,'rented')",
+    [id, itemName, customerName, customerPhone || null, rentOutDate, amountPaid ?? 0]
+  );
+  res.json({ message: "Rental recorded." });
+});
+
+app.put("/api/rentals/:id", async (req, res) => {
+  const { returnDate, amountPaid, status, notes } = req.body;
+  await pool.query(
+    `UPDATE rentals SET
+       return_date = COALESCE($1, return_date),
+       amount_paid = COALESCE($2, amount_paid),
+       status = COALESCE($3, status),
+       notes = COALESCE($4, notes)
+     WHERE id = $5`,
+    [returnDate || null, amountPaid ?? null, status || null, notes ?? null, req.params.id]
+  );
+  res.json({ message: "Rental updated." });
+});
+
+app.get("/api/time-logs", async (req, res) => {
+  const result = await pool.query("SELECT * FROM time_logs ORDER BY logged_at ASC");
+  const logs = result.rows.map((r) => ({ id: r.id, staffId: r.staff_id, type: r.event_type, loggedAt: r.logged_at }));
+  res.json(logs);
+});
+
 app.post("/api/time-log", async (req, res) => {
   const { staffId, type } = req.body;
   if (!staffId || !["in", "out"].includes(type)) return res.status(400).json({ error: "Missing or invalid fields." });
@@ -224,12 +304,6 @@ app.post("/api/time-log", async (req, res) => {
     [staffId, type]
   );
   res.json({ loggedAt: result.rows[0].logged_at });
-});
-
-app.get("/api/time-logs", async (req, res) => {
-  const result = await pool.query("SELECT * FROM time_logs ORDER BY logged_at ASC");
-  const logs = result.rows.map((r) => ({ id: r.id, staffId: r.staff_id, type: r.event_type, loggedAt: r.logged_at }));
-  res.json(logs);
 });
 
 app.get("/api/attendance", async (req, res) => {

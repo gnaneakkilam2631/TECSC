@@ -9,7 +9,7 @@ export default function StaffAdmin({ staff, refreshAll }) {
     name: "",
     baseSalary: "",
     paidLeaveQuota: 2,
-    expectedHoursPerDay: 8,
+    expectedHoursPerDay: 9,
     username: "",
     password: "",
   });
