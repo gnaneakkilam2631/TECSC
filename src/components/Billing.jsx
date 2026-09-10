@@ -1,19 +1,36 @@
 import { useState } from "react";
-import { Plus, Printer } from "lucide-react";
+import { Plus, Printer, FileDown, ScanLine } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, todayISO, uid } from "../lib/utils.js";
+import { downloadInvoicePDF } from "../lib/pdf.js";
 import { api } from "../lib/api.js";
 
 export default function Billing({ items, sales, refreshAll }) {
   const [form, setForm] = useState({ itemId: "", qty: 1, unitPrice: "", customerName: "", customerPhone: "", date: todayISO() });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scanInput, setScanInput] = useState("");
 
   const stockItems = items.filter((i) => i.qty > 0);
 
   function handleItemSelect(itemId) {
     const item = items.find((i) => i.id === itemId);
     setForm({ ...form, itemId, unitPrice: item?.sellingPrice ?? item?.costPrice ?? "" });
+  }
+
+  function handleScan(e) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const code = scanInput.trim();
+    setScanInput("");
+    if (!code) return;
+    const match = items.find((i) => i.barcode === code);
+    if (match) {
+      handleItemSelect(match.id);
+      setError("");
+    } else {
+      setError(`No item found with barcode "${code}".`);
+    }
   }
 
   async function addSale(e) {
@@ -72,6 +89,18 @@ export default function Billing({ items, sales, refreshAll }) {
   return (
     <div>
       <SectionHeader title="Billing" sub="Sell items to customers — stock updates automatically" />
+
+      <div className="flex items-center gap-2 mb-3 p-3" style={{ background: "var(--accent-soft)", borderRadius: 6 }}>
+        <ScanLine size={16} style={{ color: "var(--accent-ink)" }} />
+        <input
+          className="input flex-1 px-3 py-1.5 text-sm mono"
+          placeholder="Scan a barcode here (works with USB/Bluetooth scanners), then press Enter"
+          value={scanInput}
+          onChange={(e) => setScanInput(e.target.value)}
+          onKeyDown={handleScan}
+        />
+      </div>
+
       <form
         onSubmit={addSale}
         className="flex flex-wrap gap-2 mb-2 p-4"
@@ -125,8 +154,11 @@ export default function Billing({ items, sales, refreshAll }) {
             <span className="mono">{s.qty}</span>
             <span className="mono">{fmtMoney(s.total)}</span>
             <span style={{ color: "var(--ink-muted)" }}>{s.customerName || "—"}</span>
-            <span className="flex items-center justify-between">
+            <span className="flex items-center justify-between gap-1">
               <span className="mono text-xs">{s.date}</span>
+              <button onClick={() => downloadInvoicePDF(s)} style={{ color: "var(--ink-muted)" }} title="Download PDF">
+                <FileDown size={14} />
+              </button>
               <button onClick={() => printInvoice(s)} style={{ color: "var(--ink-muted)" }} title="Print invoice">
                 <Printer size={14} />
               </button>

@@ -1,17 +1,24 @@
-import { useState } from "react";
-import { Upload, Check, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Upload, Sun, Moon, Download, RotateCcw, AlertTriangle, ShieldCheck } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { api } from "../lib/api.js";
 
-export default function Settings({ settings, session, refreshAll }) {
+const API_BASE = "http://localhost:4000/api";
+
+export default function Settings({ settings, theme, setTheme, refreshAll }) {
   const [logoPreview, setLogoPreview] = useState(settings.logo || null);
   const [shopName, setShopName] = useState(settings.shopName || "Trinadh Electronics & Computer Servicing Centre");
   const [savingLogo, setSavingLogo] = useState(false);
   const [savingName, setSavingName] = useState(false);
-  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "" });
-  const [pwError, setPwError] = useState("");
-  const [pwSuccess, setPwSuccess] = useState("");
-  const [pwBusy, setPwBusy] = useState(false);
+  const [backupList, setBackupList] = useState([]);
+  const [restoreFile, setRestoreFile] = useState(null);
+  const [restoreConfirming, setRestoreConfirming] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState("");
+
+  useEffect(() => {
+    api.getBackupList().then(setBackupList).catch(() => {});
+  }, []);
 
   async function handleLogoUpload(e) {
     const file = e.target.files[0];
@@ -41,26 +48,42 @@ export default function Settings({ settings, session, refreshAll }) {
     }
   }
 
-  async function changePassword(e) {
-    e.preventDefault();
-    setPwError("");
-    setPwSuccess("");
-    if (!pwForm.currentPassword || !pwForm.newPassword) return;
-    setPwBusy(true);
+  function downloadBackup() {
+    window.open(`${API_BASE}/backup`, "_blank");
+  }
+
+  function handleRestoreFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setRestoreFile(file);
+    setRestoreConfirming(true);
+    setRestoreMessage("");
+  }
+
+  async function confirmRestore() {
+    if (!restoreFile) return;
+    setRestoreBusy(true);
+    setRestoreMessage("");
     try {
-      await api.changePassword(session.username, pwForm.currentPassword, pwForm.newPassword);
-      setPwSuccess("Password changed.");
-      setPwForm({ currentPassword: "", newPassword: "" });
+      const text = await restoreFile.text();
+      const data = JSON.parse(text);
+      await api.restoreBackup(data);
+      setRestoreMessage("Restored successfully. Data has been replaced with the backup.");
+      await refreshAll();
+      const list = await api.getBackupList();
+      setBackupList(list);
     } catch (err) {
-      setPwError(err.message || "Could not change password.");
+      setRestoreMessage(err.message || "Restore failed — that file may not be a valid backup.");
     } finally {
-      setPwBusy(false);
+      setRestoreBusy(false);
+      setRestoreConfirming(false);
+      setRestoreFile(null);
     }
   }
 
   return (
     <div className="max-w-lg">
-      <SectionHeader title="Settings" sub="Logo, shop name, and your login" />
+      <SectionHeader title="Settings" sub="Logo, shop name, display, and backups" />
 
       <div className="p-4 mb-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
         <p className="text-sm font-medium mb-3">Logo</p>
@@ -97,41 +120,89 @@ export default function Settings({ settings, session, refreshAll }) {
         </div>
       </div>
 
-      <div className="p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
-        <p className="text-sm font-medium mb-3">Change your password</p>
-        <form onSubmit={changePassword}>
-          <label className="block text-xs mb-1" style={{ color: "var(--ink-muted)" }}>
-            Current password
-          </label>
-          <input
-            type="password"
-            className="input w-full px-3 py-2 mb-3 text-sm"
-            value={pwForm.currentPassword}
-            onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
-          />
-          <label className="block text-xs mb-1" style={{ color: "var(--ink-muted)" }}>
-            New password
-          </label>
-          <input
-            type="password"
-            className="input w-full px-3 py-2 mb-3 text-sm"
-            value={pwForm.newPassword}
-            onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
-          />
-          {pwError && (
-            <p className="text-sm mb-2 flex items-center gap-1" style={{ color: "var(--warn)" }}>
-              <AlertCircle size={14} /> {pwError}
-            </p>
-          )}
-          {pwSuccess && (
-            <p className="text-sm mb-2 flex items-center gap-1" style={{ color: "var(--accent)" }}>
-              <Check size={14} /> {pwSuccess}
-            </p>
-          )}
-          <button disabled={pwBusy} className="btn btn-accent px-3 py-2 text-sm">
-            {pwBusy ? "Updating…" : "Change password"}
+      <div className="p-4 mb-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
+        <p className="text-sm font-medium mb-3">Display</p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTheme("light")}
+            className="btn text-sm px-3 py-1.5 flex items-center gap-1.5"
+            style={theme === "light" ? { background: "var(--accent-soft)", color: "var(--accent-ink)" } : { border: "1px solid var(--border-strong)", color: "var(--ink-muted)" }}
+          >
+            <Sun size={14} /> Light
           </button>
-        </form>
+          <button
+            onClick={() => setTheme("dark")}
+            className="btn text-sm px-3 py-1.5 flex items-center gap-1.5"
+            style={theme === "dark" ? { background: "var(--accent-soft)", color: "var(--accent-ink)" } : { border: "1px solid var(--border-strong)", color: "var(--ink-muted)" }}
+          >
+            <Moon size={14} /> Dark
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
+        <p className="text-sm font-medium mb-1 flex items-center gap-1.5">
+          <ShieldCheck size={15} style={{ color: "var(--accent)" }} /> Backup & restore
+        </p>
+        <p className="text-xs mb-3" style={{ color: "var(--ink-muted)" }}>
+          The server automatically saves a full backup once a day while it's running, kept in the{" "}
+          <span className="mono">server/backups</span> folder. You can also download one on demand right now.
+        </p>
+        <button onClick={downloadBackup} className="btn btn-accent px-3 py-2 text-sm flex items-center gap-1.5 mb-4">
+          <Download size={14} /> Download a full backup now
+        </button>
+
+        {backupList.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs mb-1" style={{ color: "var(--ink-muted)" }}>
+              Automatic backups on this server:
+            </p>
+            <p className="text-xs mono" style={{ color: "var(--ink-muted)" }}>
+              {backupList.slice(0, 5).join(", ")}
+              {backupList.length > 5 && ` +${backupList.length - 5} more`}
+            </p>
+          </div>
+        )}
+
+        <div className="row-line pt-4">
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--warn)" }}>
+            Restore from a backup file
+          </p>
+          <p className="text-xs mb-2" style={{ color: "var(--ink-muted)" }}>
+            This replaces everything currently in the app with what's in the file. Only do this if you're sure.
+          </p>
+          <label className="btn btn-outline text-xs px-3 py-1.5 flex items-center gap-1.5 cursor-pointer w-fit">
+            <Upload size={13} /> Choose backup file
+            <input type="file" accept="application/json" className="hidden" onChange={handleRestoreFileSelect} />
+          </label>
+
+          {restoreConfirming && (
+            <div className="mt-3 p-3" style={{ background: "var(--warn-soft)", borderRadius: 6 }}>
+              <p className="text-xs mb-2 flex items-center gap-1.5" style={{ color: "var(--warn)" }}>
+                <AlertTriangle size={13} /> This will permanently replace all current data with "{restoreFile?.name}". This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={confirmRestore} disabled={restoreBusy} className="btn text-xs px-3 py-1.5" style={{ background: "var(--warn)", color: "#fff" }}>
+                  {restoreBusy ? "Restoring…" : "Yes, replace all data"}
+                </button>
+                <button
+                  onClick={() => {
+                    setRestoreConfirming(false);
+                    setRestoreFile(null);
+                  }}
+                  className="btn btn-outline text-xs px-3 py-1.5"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {restoreMessage && (
+            <p className="text-xs mt-2" style={{ color: restoreMessage.includes("failed") ? "var(--warn)" : "var(--accent)" }}>
+              {restoreMessage}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

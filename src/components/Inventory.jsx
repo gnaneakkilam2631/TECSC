@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Plus, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, QrCode } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, todayISO, uid } from "../lib/utils.js";
 import { api } from "../lib/api.js";
 
 export default function Inventory({ items, refreshAll }) {
-  const [form, setForm] = useState({ name: "", qty: 1, costPrice: "", sellingPrice: "", supplier: "", date: todayISO(), lowStockThreshold: 5 });
+  const [form, setForm] = useState({ name: "", qty: 1, costPrice: "", sellingPrice: "", supplier: "", date: todayISO(), lowStockThreshold: 5, barcode: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const now = new Date();
@@ -26,7 +26,7 @@ export default function Inventory({ items, refreshAll }) {
         lowStockThreshold: Number(form.lowStockThreshold),
       });
       await refreshAll();
-      setForm({ name: "", qty: 1, costPrice: "", sellingPrice: "", supplier: "", date: todayISO(), lowStockThreshold: 5 });
+      setForm({ name: "", qty: 1, costPrice: "", sellingPrice: "", supplier: "", date: todayISO(), lowStockThreshold: 5, barcode: "" });
     } catch (err) {
       setError(err.message || "Could not add item.");
     } finally {
@@ -41,6 +41,23 @@ export default function Inventory({ items, refreshAll }) {
     } catch (err) {
       setError(err.message || "Could not remove item.");
     }
+  }
+
+  function printLabel(item) {
+    const code = item.barcode || item.id;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(code)}`;
+    const w = window.open("", "_blank");
+    w.document.write(`
+      <html><head><title>Label</title></head>
+      <body style="font-family: sans-serif; text-align:center; padding: 20px;">
+        <img src="${qrUrl}" />
+        <p style="font-weight:600; margin:8px 0 2px;">${item.name}</p>
+        <p style="margin:0; font-family:monospace; font-size:12px;">${code}</p>
+        <p style="margin:4px 0 0; font-size:14px;">${item.sellingPrice ? "₹" + Math.round(item.sellingPrice) : ""}</p>
+      </body></html>
+    `);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
   }
 
   function shift(delta) {
@@ -80,6 +97,7 @@ export default function Inventory({ items, refreshAll }) {
         <input className="input px-2 py-1.5 text-sm w-36" placeholder="Supplier / market" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-36" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
         <input className="input px-2 py-1.5 text-sm w-24" type="number" placeholder="Low stock at" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} />
+        <input className="input px-2 py-1.5 text-sm w-32" placeholder="Barcode (optional)" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
         <button disabled={busy} className="btn btn-accent px-3 py-1.5 text-sm flex items-center gap-1">
           <Plus size={14} /> {busy ? "Adding…" : "Add"}
         </button>
@@ -147,6 +165,9 @@ export default function Inventory({ items, refreshAll }) {
             <span style={{ color: "var(--ink-muted)" }}>{i.supplier || "—"}</span>
             <span className="flex items-center justify-between">
               <span className="mono text-xs">{i.date}</span>
+              <button onClick={() => printLabel(i)} style={{ color: "var(--ink-muted)" }} title="Print QR label">
+                <QrCode size={14} />
+              </button>
               <button onClick={() => removeItem(i.id)} style={{ color: "var(--ink-muted)" }}>
                 <X size={14} />
               </button>

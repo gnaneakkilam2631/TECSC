@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { LogOut, Cpu, ChevronDown, Settings as SettingsIcon, User } from "lucide-react";
+import { LogOut, Cpu, ChevronDown, User, Sun, Moon, Menu } from "lucide-react";
 import { api } from "./lib/api.js";
 import Login from "./components/Login.jsx";
 import AdminApp from "./components/AdminApp.jsx";
 import StaffApp from "./components/StaffApp.jsx";
-import Settings from "./components/Settings.jsx";
 import Profile from "./components/Profile.jsx";
 
 export default function App() {
@@ -21,29 +20,46 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [tab, setTab] = useState("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [serverError, setServerError] = useState(false);
   const menuRef = useRef(null);
 
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+  function toggleTheme() {
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+  }
+
   async function refreshAll() {
-    const [s, a, tl, i, sa, ex, r, rent, set] = await Promise.all([
-      api.getStaff(),
-      api.getAttendance(),
-      api.getTimeLogs(),
-      api.getItems(),
-      api.getSales(),
-      api.getExpenses(),
-      api.getRepairs(),
-      api.getRentals(),
-      api.getSettings(),
-    ]);
-    setStaff(s);
-    setAttendance(a);
-    setTimeLogs(tl);
-    setItems(i);
-    setSales(sa);
-    setExpenses(ex);
-    setRepairs(r);
-    setRentals(rent);
-    setSettings(set);
+    try {
+      const [s, a, tl, i, sa, ex, r, rent, set] = await Promise.all([
+        api.getStaff(),
+        api.getAttendance(),
+        api.getTimeLogs(),
+        api.getItems(),
+        api.getSales(),
+        api.getExpenses(),
+        api.getRepairs(),
+        api.getRentals(),
+        api.getSettings(),
+      ]);
+      setStaff(s);
+      setAttendance(a);
+      setTimeLogs(tl);
+      setItems(i);
+      setSales(sa);
+      setExpenses(ex);
+      setRepairs(r);
+      setRentals(rent);
+      setSettings(set);
+      setServerError(false);
+    } catch (e) {
+      setServerError(true);
+      throw e;
+    }
   }
 
   useEffect(() => {
@@ -65,6 +81,14 @@ export default function App() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!serverError) return;
+    const retry = setInterval(() => {
+      refreshAll().catch(() => {});
+    }, 10000);
+    return () => clearInterval(retry);
+  }, [serverError]);
 
   function handleLogin(newSession) {
     setSession(newSession);
@@ -89,12 +113,22 @@ export default function App() {
 
   const displayName = session.role === "admin" ? "Admin" : staff[session.staffId]?.name || session.username;
   const shopName = settings.shopName || "TECSC";
-  const isSpecialView = tab === "settings" || tab === "profile";
+  const showStaffProfile = session.role === "staff" && tab === "profile";
 
   return (
     <div className="min-h-screen">
+      {serverError && (
+        <div className="px-4 py-2 text-center text-xs font-medium" style={{ background: "var(--warn)", color: "#fff" }}>
+          Can't reach the server — recent changes may not be saved. Check that the backend is running, then refresh.
+        </div>
+      )}
       <header className="flex items-center justify-between px-5 py-3 row-line" style={{ background: "var(--surface)" }}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {session.role === "admin" && (
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ color: "var(--ink)" }}>
+              <Menu size={20} />
+            </button>
+          )}
           {settings.logo ? (
             <img src={settings.logo} alt="Logo" className="w-7 h-7 rounded-full object-cover" />
           ) : (
@@ -105,48 +139,51 @@ export default function App() {
           <span className="font-semibold text-sm">{shopName}</span>
         </div>
 
-        <div className="relative" ref={menuRef}>
-          <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 text-sm">
-            <span style={{ color: "var(--ink-muted)" }}>{displayName}</span>
-            <ChevronDown size={14} style={{ color: "var(--ink-muted)" }} />
+        <div className="flex items-center gap-3">
+          <button onClick={toggleTheme} className="btn btn-outline p-1.5" title="Toggle light/dark">
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           </button>
-          {menuOpen && (
-            <div
-              className="absolute right-0 mt-2 w-44 py-1 z-10"
-              style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
-            >
-              <button
-                onClick={() => {
-                  setTab(session.role === "admin" ? "settings" : "profile");
-                  setMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm flex items-center gap-2"
-                style={{ color: "var(--ink)" }}
+
+          <div className="relative" ref={menuRef}>
+            <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 text-sm">
+              <span style={{ color: "var(--ink-muted)" }}>{displayName}</span>
+              <ChevronDown size={14} style={{ color: "var(--ink-muted)" }} />
+            </button>
+            {menuOpen && (
+              <div
+                className="absolute right-0 mt-2 w-44 py-1 z-50"
+                style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
               >
-                {session.role === "admin" ? <SettingsIcon size={14} /> : <User size={14} />}
-                {session.role === "admin" ? "Settings" : "My profile"}
-              </button>
-              <button
-                onClick={handleLogout}
-                className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 row-line"
-                style={{ color: "var(--warn)" }}
-              >
-                <LogOut size={14} /> Sign out
-              </button>
-            </div>
-          )}
+                <button
+                  onClick={() => {
+                    if (session.role === "admin") {
+                      setTab("profile");
+                      setSidebarOpen(false);
+                    } else {
+                      setTab("profile");
+                    }
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm flex items-center gap-2"
+                  style={{ color: "var(--ink)" }}
+                >
+                  <User size={14} />
+                  My profile
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 row-line"
+                  style={{ color: "var(--warn)" }}
+                >
+                  <LogOut size={14} /> Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {isSpecialView ? (
-        tab === "settings" ? (
-          <div className="p-5">
-            <Settings settings={settings} session={session} refreshAll={refreshAll} />
-          </div>
-        ) : (
-          <Profile session={session} staff={staff} />
-        )
-      ) : session.role === "admin" ? (
+      {session.role === "admin" ? (
         <AdminApp
           tab={tab}
           setTab={setTab}
@@ -158,8 +195,16 @@ export default function App() {
           expenses={expenses}
           repairs={repairs}
           rentals={rentals}
+          settings={settings}
+          session={session}
+          theme={theme}
+          setTheme={setTheme}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
           refreshAll={refreshAll}
         />
+      ) : showStaffProfile ? (
+        <Profile session={session} staff={staff} onBack={() => setTab("myattendance")} />
       ) : (
         <StaffApp session={session} staff={staff} attendance={attendance} timeLogs={timeLogs} refreshAll={refreshAll} />
       )}

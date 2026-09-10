@@ -1,15 +1,18 @@
-import { useState } from "react";
-import { Check, AlertCircle, ArrowLeft } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Check, AlertCircle, User } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
-import { fmtMoney } from "../lib/utils.js";
 import { api } from "../lib/api.js";
 
-export default function Profile({ session, staff, onBack }) {
-  const person = staff[session.staffId];
+export default function AdminProfile({ session }) {
+  const [me, setMe] = useState(null);
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "" });
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
+
+  useEffect(() => {
+    api.getMe(session.username).then(setMe).catch(() => {});
+  }, [session.username]);
 
   async function changePassword(e) {
     e.preventDefault();
@@ -29,34 +32,35 @@ export default function Profile({ session, staff, onBack }) {
   }
 
   return (
-    <div className="max-w-md mx-auto p-5">
-      {onBack && (
-        <button onClick={onBack} className="text-xs mb-3 flex items-center gap-1" style={{ color: "var(--ink-muted)" }}>
-          <ArrowLeft size={13} /> Back to attendance
-        </button>
-      )}
-      <SectionHeader title="My profile" />
+    <div className="max-w-md">
+      <SectionHeader title="My profile" sub="Your account details" />
 
-      {person && (
-        <div className="p-4 mb-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
-          <div className="flex justify-between text-sm py-1">
-            <span style={{ color: "var(--ink-muted)" }}>Name</span>
-            <span>{person.name}</span>
-          </div>
-          <div className="flex justify-between text-sm py-1">
-            <span style={{ color: "var(--ink-muted)" }}>Monthly salary</span>
-            <span className="mono">{fmtMoney(person.baseSalary)}</span>
-          </div>
-          <div className="flex justify-between text-sm py-1">
-            <span style={{ color: "var(--ink-muted)" }}>Expected hours/day</span>
-            <span className="mono">{person.expectedHoursPerDay}h</span>
-          </div>
-          <div className="flex justify-between text-sm py-1">
-            <span style={{ color: "var(--ink-muted)" }}>Paid leaves/month</span>
-            <span className="mono">{person.paidLeaveQuota}</span>
-          </div>
+      <div className="p-4 mb-4 flex items-center gap-3" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
+        <div className="w-12 h-12 rounded-full brand-badge flex items-center justify-center flex-shrink-0">
+          <User size={20} color="#14161a" />
         </div>
-      )}
+        <div>
+          <p className="text-sm font-medium">{me?.username || session.username}</p>
+          <p className="text-xs" style={{ color: "var(--ink-muted)" }}>
+            {me?.role === "admin" ? "Administrator" : me?.role || "…"}
+          </p>
+        </div>
+      </div>
+
+      <div className="p-4 mb-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
+        <div className="flex justify-between text-sm py-1">
+          <span style={{ color: "var(--ink-muted)" }}>Username</span>
+          <span className="mono">{me?.username || "—"}</span>
+        </div>
+        <div className="flex justify-between text-sm py-1">
+          <span style={{ color: "var(--ink-muted)" }}>Email</span>
+          <span className="mono">{me?.email || "—"}</span>
+        </div>
+        <div className="flex justify-between text-sm py-1">
+          <span style={{ color: "var(--ink-muted)" }}>Role</span>
+          <span className="mono">{me?.role || "—"}</span>
+        </div>
+      </div>
 
       <div className="p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
         <p className="text-sm font-medium mb-3">Change your password</p>
@@ -89,7 +93,7 @@ export default function Profile({ session, staff, onBack }) {
               <Check size={14} /> {pwSuccess}
             </p>
           )}
-          <button disabled={pwBusy} className="btn btn-accent w-full py-2 text-sm">
+          <button disabled={pwBusy} className="btn btn-accent px-3 py-2 text-sm">
             {pwBusy ? "Updating…" : "Change password"}
           </button>
         </form>

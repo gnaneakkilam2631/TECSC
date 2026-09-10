@@ -51,6 +51,7 @@ export async function ensureTables() {
   await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS selling_price NUMERIC;`);
   await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER NOT NULL DEFAULT 5;`);
   await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS paid BOOLEAN NOT NULL DEFAULT false;`);
+  await pool.query(`ALTER TABLE items ADD COLUMN IF NOT EXISTS barcode TEXT;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS attendance (
       staff_id TEXT NOT NULL,

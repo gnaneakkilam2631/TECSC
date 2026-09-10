@@ -39,10 +39,14 @@ export const api = {
 
   getSettings: () => request("/settings"),
   setSetting: (key, value) => request("/settings", { method: "POST", body: JSON.stringify({ key, value }) }),
+  getMe: (username) => request(`/me?username=${encodeURIComponent(username)}`),
   changePassword: (username, currentPassword, newPassword) =>
-    request("/change-password", { method: "POST", body: JSON.stringify({ username, currentPassword, newPassword }) }),
+  request("/change-password", { method: "POST", body: JSON.stringify({ username, currentPassword, newPassword }) }),
 
   getRentals: () => request("/rentals"),
   addRental: (rental) => request("/rentals", { method: "POST", body: JSON.stringify(rental) }),
   updateRental: (id, updates) => request(`/rentals/${id}`, { method: "PUT", body: JSON.stringify(updates) }),
+
+  getBackupList: () => request("/backup-list"),
+  restoreBackup: (data) => request("/restore", { method: "POST", body: JSON.stringify(data) }),
 };
