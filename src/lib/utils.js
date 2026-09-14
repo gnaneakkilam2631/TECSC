@@ -83,7 +83,8 @@ export function todaySessions(timeLogs, staffId) {
 //   1 day's salary  = monthly salary ÷ 30
 //   1 hour's salary = that day's salary ÷ expected hours per day (default 9)
 // A day with fewer hours worked than expected loses pay for the missing
-// hours; a day with no clock-in at all loses a full day's pay.
+// hours; a day with no clock-in at all loses a full day's pay. Admin can
+// override either a full day's status, or just type exact hours worked.
 export function monthSummary(attendance, timeLogs, staff, staffId, year, month) {
   const total = daysInMonth(year, month);
   const person = staff[staffId];
@@ -109,7 +110,9 @@ export function monthSummary(attendance, timeLogs, staff, staffId, year, month) 
     const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
     if (!isPastOrToday(dateStr)) continue;
 
-    const override = attendance[`${staffId}:${dateStr}`];
+    const entry = attendance[`${staffId}:${dateStr}`];
+    const override = entry?.status || null;
+    const hoursOverride = entry?.hours ?? null;
 
     if (override === "absent") {
       absent++;
@@ -131,7 +134,9 @@ export function monthSummary(attendance, timeLogs, staff, staffId, year, month) 
       continue;
     }
 
-    const hours = hoursWorkedOnDay(timeLogs, staffId, dateStr);
+    // No full-day status override. If the admin manually entered exact
+    // hours worked for this day, use that instead of the clock-in/out data.
+    const hours = hoursOverride != null ? hoursOverride : hoursWorkedOnDay(timeLogs, staffId, dateStr);
     expectedHoursSoFar += expectedHours;
     totalHoursWorked += hours;
     if (hours <= 0) {

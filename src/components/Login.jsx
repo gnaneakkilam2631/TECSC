@@ -170,6 +170,12 @@ export default function Login({ onLogin }) {
             </form>
           )}
 
+          {mode === "login" && (
+            <a href="/track" className="block text-center text-xs mt-4" style={{ color: "var(--ink-muted)" }}>
+              Track your repair status →
+            </a>
+          )}
+
           {mode === "forgot" && (
             <form onSubmit={handleForgotSubmit}>
               <button

@@ -1,12 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { LogOut, Cpu, ChevronDown, User, Sun, Moon, Menu } from "lucide-react";
-import { api } from "./lib/api.js";
+import { api, setActor } from "./lib/api.js";
 import Login from "./components/Login.jsx";
 import AdminApp from "./components/AdminApp.jsx";
 import StaffApp from "./components/StaffApp.jsx";
 import Profile from "./components/Profile.jsx";
+import TrackRepair from "./components/TrackRepair.jsx";
+import GlobalSearch from "./components/GlobalSearch.jsx";
 
 export default function App() {
+  const isTrackPage = window.location.pathname.startsWith("/track");
+
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState({});
   const [attendance, setAttendance] = useState({});
@@ -63,6 +67,10 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (isTrackPage) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
         await refreshAll();
@@ -92,10 +100,12 @@ export default function App() {
 
   function handleLogin(newSession) {
     setSession(newSession);
+    setActor(newSession.username);
     setTab(newSession.role === "admin" ? "dashboard" : "myattendance");
   }
   function handleLogout() {
     setSession(null);
+    setActor(null);
     setMenuOpen(false);
   }
 
@@ -105,6 +115,10 @@ export default function App() {
         <p style={{ color: "var(--ink-muted)" }}>Loading…</p>
       </div>
     );
+  }
+
+  if (isTrackPage) {
+    return <TrackRepair />;
   }
 
   if (!session) {
@@ -122,8 +136,8 @@ export default function App() {
           Can't reach the server — recent changes may not be saved. Check that the backend is running, then refresh.
         </div>
       )}
-      <header className="flex items-center justify-between px-5 py-3 row-line" style={{ background: "var(--surface)" }}>
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between px-5 py-3 row-line gap-3" style={{ background: "var(--surface)" }}>
+        <div className="flex items-center gap-3 flex-shrink-0">
           {session.role === "admin" && (
             <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ color: "var(--ink)" }}>
               <Menu size={20} />
@@ -136,17 +150,21 @@ export default function App() {
               <Cpu size={14} color="#14161a" />
             </div>
           )}
-          <span className="font-semibold text-sm">{shopName}</span>
+          <span className="font-semibold text-sm hidden sm:inline">{shopName}</span>
         </div>
 
-        <div className="flex items-center gap-3">
+        {session.role === "admin" && (
+          <GlobalSearch staff={staff} items={items} repairs={repairs} sales={sales} rentals={rentals} setTab={setTab} />
+        )}
+
+        <div className="flex items-center gap-3 flex-shrink-0">
           <button onClick={toggleTheme} className="btn btn-outline p-1.5" title="Toggle light/dark">
             {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
           </button>
 
           <div className="relative" ref={menuRef}>
             <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 text-sm">
-              <span style={{ color: "var(--ink-muted)" }}>{displayName}</span>
+              <span style={{ color: "var(--ink-muted)" }} className="hidden sm:inline">{displayName}</span>
               <ChevronDown size={14} style={{ color: "var(--ink-muted)" }} />
             </button>
             {menuOpen && (
@@ -156,12 +174,7 @@ export default function App() {
               >
                 <button
                   onClick={() => {
-                    if (session.role === "admin") {
-                      setTab("profile");
-                      setSidebarOpen(false);
-                    } else {
-                      setTab("profile");
-                    }
+                    setTab("profile");
                     setMenuOpen(false);
                   }}
                   className="w-full text-left px-3 py-2 text-sm flex items-center gap-2"

@@ -11,10 +11,25 @@ function fmtTime(iso) {
 export default function AttendanceAdmin({ staff, attendance, timeLogs, refreshAll }) {
   const [date, setDate] = useState(todayISO());
   const [expanded, setExpanded] = useState(null);
+  const [hoursDrafts, setHoursDrafts] = useState({});
 
   async function setStatus(staffId, status) {
-    const current = attendance[`${staffId}:${date}`];
+    const entry = attendance[`${staffId}:${date}`];
+    const current = entry?.status;
     await api.setAttendance(staffId, date, current === status ? "" : status);
+    await refreshAll();
+  }
+
+  async function saveHours(staffId) {
+    const val = hoursDrafts[staffId];
+    if (val === undefined || val === "") return;
+    await api.setAttendanceHours(staffId, date, Number(val));
+    setHoursDrafts({ ...hoursDrafts, [staffId]: "" });
+    await refreshAll();
+  }
+
+  async function clearHours(staffId) {
+    await api.setAttendanceHours(staffId, date, null);
     await refreshAll();
   }
 
@@ -24,7 +39,7 @@ export default function AttendanceAdmin({ staff, attendance, timeLogs, refreshAl
     <div>
       <SectionHeader
         title="Attendance overrides"
-        sub="Staff clock themselves in and out from their own screen — use these only for planned leave, a full absence, or a half day. Click a selected status again to clear it and go back to their clock-in data."
+        sub="Staff clock themselves in and out from their own screen. Use the status buttons for a full absence/leave/half-day, or type exact hours worked if they forgot to clock in/out or worked a partial day. Click a selected status again to clear it."
       />
       <div className="flex items-center gap-2 mb-4">
         <label className="text-sm" style={{ color: "var(--ink-muted)" }}>
@@ -39,8 +54,10 @@ export default function AttendanceAdmin({ staff, attendance, timeLogs, refreshAl
           </p>
         )}
         {staffList.map(([id, s]) => {
-          const current = attendance[`${id}:${date}`];
-          const hours = hoursWorkedOnDay(timeLogs, id, date);
+          const entry = attendance[`${id}:${date}`];
+          const current = entry?.status;
+          const manualHours = entry?.hours;
+          const clockedHours = hoursWorkedOnDay(timeLogs, id, date);
           const dayLogs = timeLogs
             .filter((l) => l.staffId === id && l.loggedAt.slice(0, 10) === date)
             .sort((a, b) => new Date(a.loggedAt) - new Date(b.loggedAt));
@@ -57,8 +74,12 @@ export default function AttendanceAdmin({ staff, attendance, timeLogs, refreshAl
                   {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   {s.name}
                 </button>
-                <span className="text-xs mono" style={{ color: "var(--ink-muted)" }}>
-                  {hours > 0 ? `${fmtHours(hours)} clocked` : "no clock-in"}
+                <span className="text-xs mono" style={{ color: manualHours != null ? "var(--gold)" : "var(--ink-muted)" }}>
+                  {manualHours != null
+                    ? `${fmtHours(manualHours)} (manual)`
+                    : clockedHours > 0
+                    ? `${fmtHours(clockedHours)} clocked`
+                    : "no clock-in"}
                 </span>
                 <div className="flex gap-1">
                   {Object.entries(STATUS_META)
@@ -78,6 +99,24 @@ export default function AttendanceAdmin({ staff, attendance, timeLogs, refreshAl
                       </button>
                     ))}
                 </div>
+              </div>
+              <div className="px-4 pb-3 flex items-center gap-2">
+                <input
+                  className="input px-2 py-1 text-xs w-28"
+                  type="number"
+                  step="0.5"
+                  placeholder={manualHours != null ? `${manualHours}h set` : "Hours worked"}
+                  value={hoursDrafts[id] ?? ""}
+                  onChange={(e) => setHoursDrafts({ ...hoursDrafts, [id]: e.target.value })}
+                />
+                <button onClick={() => saveHours(id)} className="btn btn-outline text-xs px-2 py-1">
+                  Save hours
+                </button>
+                {manualHours != null && (
+                  <button onClick={() => clearHours(id)} className="text-xs" style={{ color: "var(--ink-muted)" }}>
+                    Clear
+                  </button>
+                )}
               </div>
               {isOpen && (
                 <div className="px-4 pb-3 text-xs" style={{ color: "var(--ink-muted)" }}>

@@ -60,6 +60,7 @@ export async function ensureTables() {
       PRIMARY KEY (staff_id, date)
     );
   `);
+  await pool.query(`ALTER TABLE attendance ADD COLUMN IF NOT EXISTS hours_override NUMERIC;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS time_logs (
       id SERIAL PRIMARY KEY,
@@ -122,6 +123,15 @@ export async function ensureTables() {
       amount_paid NUMERIC NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'rented',
       notes TEXT
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      actor TEXT,
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
 }

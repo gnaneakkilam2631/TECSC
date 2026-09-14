@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, uid } from "../lib/utils.js";
 import { api } from "../lib/api.js";
@@ -15,6 +15,7 @@ export default function StaffAdmin({ staff, refreshAll }) {
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   async function addStaff(e) {
     e.preventDefault();
@@ -33,12 +34,18 @@ export default function StaffAdmin({ staff, refreshAll }) {
         expectedHoursPerDay: Number(form.expectedHoursPerDay),
       });
       await refreshAll();
-      setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, expectedHoursPerDay: 8, username: "", password: "" });
+      setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, expectedHoursPerDay: 9, username: "", password: "" });
     } catch (err) {
       setError(err.message || "Could not add staff.");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function removeStaff(id) {
+    await api.deleteStaff(id);
+    setConfirmDelete(null);
+    await refreshAll();
   }
 
   return (
@@ -73,9 +80,28 @@ export default function StaffAdmin({ staff, refreshAll }) {
         {Object.entries(staff).map(([id, s]) => (
           <div key={id} className="flex items-center justify-between px-4 py-3 row-line text-sm">
             <span className="font-medium">{s.name}</span>
-            <span className="mono" style={{ color: "var(--ink-muted)" }}>
-              {fmtMoney(s.baseSalary)}/mo · {s.expectedHoursPerDay}h/day · {s.paidLeaveQuota} paid leaves
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="mono" style={{ color: "var(--ink-muted)" }}>
+                {fmtMoney(s.baseSalary)}/mo · {s.expectedHoursPerDay}h/day · {s.paidLeaveQuota} paid leaves
+              </span>
+              {confirmDelete === id ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: "var(--warn)" }}>
+                    Remove {s.name}?
+                  </span>
+                  <button onClick={() => removeStaff(id)} className="btn text-xs px-2 py-1" style={{ background: "var(--warn)", color: "#fff" }}>
+                    Yes
+                  </button>
+                  <button onClick={() => setConfirmDelete(null)} className="btn btn-outline text-xs px-2 py-1">
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmDelete(id)} style={{ color: "var(--ink-muted)" }} title="Remove staff">
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

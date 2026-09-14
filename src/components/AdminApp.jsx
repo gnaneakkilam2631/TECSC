@@ -1,4 +1,4 @@
-import { IndianRupee, Package, Users, CalendarCheck, Wrench, Receipt, Wallet, BarChart3, Truck, Laptop, Settings as SettingsIcon, User, TrendingUp } from "lucide-react";
+import { IndianRupee, Package, Users, CalendarCheck, Wrench, Receipt, Wallet, BarChart3, Truck, Laptop, Settings as SettingsIcon, User, TrendingUp, History } from "lucide-react";
 import Dashboard from "./Dashboard.jsx";
 import Inventory from "./Inventory.jsx";
 import StaffAdmin from "./StaffAdmin.jsx";
@@ -13,6 +13,7 @@ import Rentals from "./Rentals.jsx";
 import Settings from "./Settings.jsx";
 import AdminProfile from "./AdminProfile.jsx";
 import Analytics from "./Analytics.jsx";
+import AuditLog from "./AuditLog.jsx";
 
 const TABS = [
   { id: "dashboard", label: "Dashboard", icon: IndianRupee },
@@ -27,6 +28,7 @@ const TABS = [
   { id: "expenses", label: "Expenses", icon: Wallet },
   { id: "analytics", label: "Analytics", icon: TrendingUp },
   { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "audit", label: "Audit Log", icon: History },
   { id: "profile", label: "Profile", icon: User },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -52,7 +54,6 @@ export default function AdminApp({
 }) {
   function selectTab(id) {
     setTab(id);
-    // Sidebar stays open across tabs — only the navbar hamburger toggles it.
   }
 
   return (
@@ -90,6 +91,7 @@ export default function AdminApp({
         {tab === "expenses" && <Expenses expenses={expenses} refreshAll={refreshAll} />}
         {tab === "analytics" && <Analytics sales={sales} items={items} expenses={expenses} repairs={repairs} />}
         {tab === "reports" && <Reports items={items} sales={sales} repairs={repairs} />}
+        {tab === "audit" && <AuditLog />}
         {tab === "profile" && <AdminProfile session={session} />}
         {tab === "settings" && <Settings settings={settings} theme={theme} setTheme={setTheme} refreshAll={refreshAll} />}
       </main>

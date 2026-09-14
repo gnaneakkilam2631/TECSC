@@ -22,3 +22,12 @@ export async function sendResetCodeEmail(toEmail, code) {
     html: `<p>Your password reset code is:</p><h2 style="letter-spacing:4px">${code}</h2><p>This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>`,
   });
 }
+
+export async function sendGenericEmail(toEmail, subject, html) {
+  await transporter.sendMail({
+    from: `"TECSC" <${process.env.GMAIL_USER}>`,
+    to: toEmail,
+    subject,
+    html,
+  });
+}
