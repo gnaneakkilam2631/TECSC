@@ -38,7 +38,6 @@ export default function AdminApp({
   setTab,
   staff,
   attendance,
-  timeLogs,
   items,
   sales,
   expenses,
@@ -54,6 +53,7 @@ export default function AdminApp({
 }) {
   function selectTab(id) {
     setTab(id);
+    // Sidebar stays open across tabs — only the navbar hamburger toggles it.
   }
 
   return (
@@ -79,14 +79,14 @@ export default function AdminApp({
       </nav>
 
       <main className={`${sidebarOpen ? "md:ml-64" : "ml-0"} transition-[margin] duration-200 p-5`}>
-        {tab === "dashboard" && <Dashboard staff={staff} items={items} attendance={attendance} timeLogs={timeLogs} repairs={repairs} />}
+        {tab === "dashboard" && <Dashboard staff={staff} items={items} attendance={attendance} repairs={repairs} />}
         {tab === "billing" && <Billing items={items} sales={sales} refreshAll={refreshAll} />}
         {tab === "inventory" && <Inventory items={items} refreshAll={refreshAll} />}
         {tab === "rentals" && <Rentals rentals={rentals} refreshAll={refreshAll} />}
         {tab === "suppliers" && <Suppliers items={items} refreshAll={refreshAll} />}
         {tab === "staff" && <StaffAdmin staff={staff} refreshAll={refreshAll} />}
-        {tab === "attendance" && <AttendanceAdmin staff={staff} attendance={attendance} timeLogs={timeLogs} refreshAll={refreshAll} />}
-        {tab === "salary" && <SalaryReport staff={staff} attendance={attendance} timeLogs={timeLogs} />}
+        {tab === "attendance" && <AttendanceAdmin staff={staff} attendance={attendance} refreshAll={refreshAll} />}
+        {tab === "salary" && <SalaryReport staff={staff} attendance={attendance} />}
         {tab === "repairs" && <RepairAdmin repairs={repairs} refreshAll={refreshAll} />}
         {tab === "expenses" && <Expenses expenses={expenses} refreshAll={refreshAll} />}
         {tab === "analytics" && <Analytics sales={sales} items={items} expenses={expenses} repairs={repairs} />}

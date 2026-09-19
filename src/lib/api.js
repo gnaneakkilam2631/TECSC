@@ -1,4 +1,4 @@
-// Talks to the real backend (server/index.js) instead of the browser's
+﻿// Talks to the real backend (server/index.js) instead of the browser's
 // localStorage, so data is shared across every device that can reach the
 // server.
 
@@ -39,13 +39,8 @@ export const api = {
   deleteExpense: (id) => request(`/expenses/${id}`, { method: "DELETE" }),
 
   getAttendance: () => request("/attendance"),
-  setAttendance: (staffId, date, status) =>
-    request("/attendance", { method: "POST", body: JSON.stringify({ staffId, date, status }) }),
-  setAttendanceHours: (staffId, date, hours) =>
-    request("/attendance-hours", { method: "POST", body: JSON.stringify({ staffId, date, hours }) }),
-
-  getTimeLogs: () => request("/time-logs"),
-  logTime: (staffId, type) => request("/time-log", { method: "POST", body: JSON.stringify({ staffId, type }) }),
+  setAttendance: (staffId, date, status, hours) =>
+    request("/attendance", { method: "POST", body: JSON.stringify({ staffId, date, status, hours }) }),
 
   getRepairs: () => request("/repairs"),
   addRepair: (repair) => request("/repairs", { method: "POST", body: JSON.stringify(repair) }),

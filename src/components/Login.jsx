@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { LogIn, Cpu, AlertCircle, CheckCircle2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { api } from "../lib/api.js";
 
@@ -171,7 +171,11 @@ export default function Login({ onLogin }) {
           )}
 
           {mode === "login" && (
-            <a href="/track" className="block text-center text-xs mt-4" style={{ color: "var(--ink-muted)" }}>
+            <a
+              href="/track"
+              className="block text-center text-xs mt-4"
+              style={{ color: "var(--ink-muted)" }}
+            >
               Track your repair status →
             </a>
           )}

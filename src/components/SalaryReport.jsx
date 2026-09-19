@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
 import { fmtMoney, fmtHours, monthSummary } from "../lib/utils.js";
 
-export default function SalaryReport({ staff, attendance, timeLogs }) {
+export default function SalaryReport({ staff, attendance }) {
   const now = new Date();
   const [ym, setYm] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const label = new Date(ym.year, ym.month, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
@@ -25,7 +25,7 @@ export default function SalaryReport({ staff, attendance, timeLogs }) {
 
   return (
     <div>
-      <SectionHeader title="Salary report" sub="Pay is calculated from actual clocked hours, plus any admin overrides for leave/absence" />
+      <SectionHeader title="Salary report" sub="Pay is based entirely on the Present/Absent + hours the admin marked in the Attendance tab" />
       <div className="flex items-center gap-2 mb-4">
         <button onClick={() => shift(-1)} className="btn btn-outline p-1.5">
           <ChevronLeft size={14} />
@@ -39,8 +39,8 @@ export default function SalaryReport({ staff, attendance, timeLogs }) {
         <div className="grid grid-cols-6 gap-2 px-4 py-2 text-xs font-medium row-line" style={{ color: "var(--ink-muted)" }}>
           <span>Staff</span>
           <span>Base</span>
+          <span>Days marked</span>
           <span>Hours worked</span>
-          <span>Leave used</span>
           <span>Deduction</span>
           <span>Net pay</span>
         </div>
@@ -50,16 +50,16 @@ export default function SalaryReport({ staff, attendance, timeLogs }) {
           </p>
         )}
         {staffList.map(([id, s]) => {
-          const sum = monthSummary(attendance, timeLogs, staff, id, ym.year, ym.month);
+          const sum = monthSummary(attendance, staff, id, ym.year, ym.month);
           return (
             <div key={id} className="grid grid-cols-6 gap-2 px-4 py-2 text-sm row-line items-center">
               <span>{s.name}</span>
               <span className="mono">{fmtMoney(s.baseSalary)}</span>
               <span className="mono">
-                {fmtHours(sum.totalHoursWorked)}/{fmtHours(sum.expectedHoursSoFar)}
+                {sum.daysMarked} ({sum.present}P / {sum.absent}A)
               </span>
               <span className="mono">
-                {sum.leave}/{sum.quota}
+                {fmtHours(sum.totalHoursWorked)}/{fmtHours(sum.expectedHoursSoFar)}
               </span>
               <span className="mono" style={{ color: sum.deduction > 0 ? "var(--warn)" : "var(--ink-muted)" }}>
                 -{fmtMoney(sum.deduction)}
@@ -70,8 +70,9 @@ export default function SalaryReport({ staff, attendance, timeLogs }) {
         })}
       </div>
       <p className="text-xs mt-3" style={{ color: "var(--ink-muted)" }}>
-        Deduction = shortfall between expected and clocked hours × hourly rate, plus full-day deductions for admin-marked
-        absent/half days and unpaid leave beyond quota. Hourly rate = monthly salary ÷ (days in month × expected hours/day).
+        Day's salary = monthly salary ÷ 30. Hour's salary = day's salary ÷ expected hours/day. Absent = lose a full
+        day's salary. Present with fewer hours than expected = lose salary for the missing hours only. Days not yet
+        marked don't count either way.
       </p>
     </div>
   );

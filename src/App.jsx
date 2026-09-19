@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { LogOut, Cpu, ChevronDown, User, Sun, Moon, Menu } from "lucide-react";
 import { api, setActor } from "./lib/api.js";
 import Login from "./components/Login.jsx";
@@ -14,7 +14,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [staff, setStaff] = useState({});
   const [attendance, setAttendance] = useState({});
-  const [timeLogs, setTimeLogs] = useState([]);
   const [items, setItems] = useState([]);
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -39,10 +38,9 @@ export default function App() {
 
   async function refreshAll() {
     try {
-      const [s, a, tl, i, sa, ex, r, rent, set] = await Promise.all([
+      const [s, a, i, sa, ex, r, rent, set] = await Promise.all([
         api.getStaff(),
         api.getAttendance(),
-        api.getTimeLogs(),
         api.getItems(),
         api.getSales(),
         api.getExpenses(),
@@ -52,7 +50,6 @@ export default function App() {
       ]);
       setStaff(s);
       setAttendance(a);
-      setTimeLogs(tl);
       setItems(i);
       setSales(sa);
       setExpenses(ex);
@@ -112,7 +109,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <p style={{ color: "var(--ink-muted)" }}>Loading…</p>
+        <p style={{ color: "var(--ink-muted)" }}>Loadingâ€¦</p>
       </div>
     );
   }
@@ -133,7 +130,7 @@ export default function App() {
     <div className="min-h-screen">
       {serverError && (
         <div className="px-4 py-2 text-center text-xs font-medium" style={{ background: "var(--warn)", color: "#fff" }}>
-          Can't reach the server — recent changes may not be saved. Check that the backend is running, then refresh.
+          Can't reach the server â€” recent changes may not be saved. Check that the backend is running, then refresh.
         </div>
       )}
       <header className="flex items-center justify-between px-5 py-3 row-line gap-3" style={{ background: "var(--surface)" }}>
@@ -202,7 +199,6 @@ export default function App() {
           setTab={setTab}
           staff={staff}
           attendance={attendance}
-          timeLogs={timeLogs}
           items={items}
           sales={sales}
           expenses={expenses}
@@ -219,7 +215,7 @@ export default function App() {
       ) : showStaffProfile ? (
         <Profile session={session} staff={staff} onBack={() => setTab("myattendance")} />
       ) : (
-        <StaffApp session={session} staff={staff} attendance={attendance} timeLogs={timeLogs} refreshAll={refreshAll} />
+        <StaffApp session={session} staff={staff} attendance={attendance} />
       )}
     </div>
   );

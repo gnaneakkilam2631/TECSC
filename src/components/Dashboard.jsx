@@ -1,17 +1,18 @@
-import { Users, Package, IndianRupee, AlertCircle, Circle } from "lucide-react";
+import { Users, Package, IndianRupee, AlertCircle, CheckCircle2 } from "lucide-react";
 import SectionHeader from "./SectionHeader.jsx";
-import { fmtMoney, monthSummary, currentClockStatus } from "../lib/utils.js";
+import { fmtMoney, monthSummary, todayISO } from "../lib/utils.js";
 
-export default function Dashboard({ staff, items, attendance, timeLogs, repairs }) {
+export default function Dashboard({ staff, items, attendance, repairs }) {
   const now = new Date();
   const staffList = Object.entries(staff);
   const totalInventoryValue = items.reduce((s, i) => s + i.qty * i.costPrice, 0);
   const totalDeductions = staffList.reduce(
-    (sum, [id]) => sum + monthSummary(attendance, timeLogs, staff, id, now.getFullYear(), now.getMonth()).deduction,
+    (sum, [id]) => sum + monthSummary(attendance, staff, id, now.getFullYear(), now.getMonth()).deduction,
     0
   );
   const openRepairs = (repairs || []).filter((r) => r.status !== "delivered").length;
-  const clockedIn = staffList.filter(([id]) => currentClockStatus(timeLogs, id).status === "in");
+  const today = todayISO();
+  const markedToday = staffList.filter(([id]) => attendance[`${id}:${today}`]?.status).length;
 
   const cards = [
     { label: "Staff members", value: staffList.length, icon: Users },
@@ -36,19 +37,15 @@ export default function Dashboard({ staff, items, attendance, timeLogs, repairs 
         ))}
       </div>
 
-      <SectionHeader title="Currently at work" />
-      <div className="mb-6 p-4 flex flex-wrap gap-3" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
-        {clockedIn.length === 0 ? (
-          <p className="text-sm" style={{ color: "var(--ink-muted)" }}>
-            No one is currently clocked in.
-          </p>
-        ) : (
-          clockedIn.map(([id, s]) => (
-            <span key={id} className="text-sm flex items-center gap-1.5">
-              <Circle size={8} fill="var(--accent)" style={{ color: "var(--accent)" }} />
-              {s.name}
-            </span>
-          ))
+      <div className="mb-6 p-4 flex items-center gap-2" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
+        <CheckCircle2 size={15} style={{ color: markedToday === staffList.length && staffList.length > 0 ? "var(--accent)" : "var(--ink-muted)" }} />
+        <span className="text-sm">
+          Attendance marked today: <strong className="mono">{markedToday}</strong> / {staffList.length}
+        </span>
+        {markedToday < staffList.length && staffList.length > 0 && (
+          <span className="text-xs" style={{ color: "var(--ink-muted)" }}>
+            — remember to mark the rest in the Attendance tab
+          </span>
         )}
       </div>
 
@@ -60,12 +57,12 @@ export default function Dashboard({ staff, items, attendance, timeLogs, repairs 
           </p>
         )}
         {staffList.map(([id, s]) => {
-          const sum = monthSummary(attendance, timeLogs, staff, id, now.getFullYear(), now.getMonth());
+          const sum = monthSummary(attendance, staff, id, now.getFullYear(), now.getMonth());
           return (
             <div key={id} className="flex items-center justify-between px-4 py-3 row-line text-sm">
               <span>{s.name}</span>
               <span className="mono" style={{ color: "var(--ink-muted)" }}>
-                {sum.present} present · {sum.absent} absent · {sum.leave} leave
+                {sum.present} present · {sum.absent} absent
               </span>
               <span className="mono" style={{ color: sum.deduction > 0 ? "var(--warn)" : "var(--ink-muted)" }}>
                 -{fmtMoney(sum.deduction)}

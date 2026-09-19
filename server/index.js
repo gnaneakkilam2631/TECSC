@@ -14,7 +14,6 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
 
-// Every write request from the frontend carries who's doing it, via this header.
 app.use((req, res, next) => {
   req.actor = req.headers["x-actor"] || null;
   next();
@@ -23,7 +22,7 @@ app.use((req, res, next) => {
 const BACKUP_DIR = path.join(process.cwd(), "backups");
 
 function generateCode() {
-  return String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
+  return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 async function logAction(req, action, details) {
@@ -38,56 +37,43 @@ async function logAction(req, action, details) {
   }
 }
 
-// --- Login ---
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ error: "Username and password required." });
-
   const result = await pool.query("SELECT * FROM users WHERE username = $1 OR email = $1", [username]);
   const user = result.rows[0];
   if (!user) return res.status(401).json({ error: "Incorrect username or password." });
-
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: "Incorrect username or password." });
-
   res.json({ username: user.username, role: user.role, staffId: user.staff_id });
 });
 
-// --- Step 1 of forgot password: request a code by email ---
 app.post("/api/forgot-password", async (req, res) => {
   const { username } = req.body;
   if (!username) return res.status(400).json({ error: "Username required." });
-
   const result = await pool.query("SELECT * FROM users WHERE username = $1 OR email = $1", [username]);
   const user = result.rows[0];
-  // Always respond the same way whether or not the user exists, so people can't guess valid usernames.
   if (!user || !user.email) {
     return res.json({ message: "If that account exists, a code has been sent." });
   }
-
   const code = generateCode();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   await pool.query("INSERT INTO reset_codes (username, code, expires_at) VALUES ($1, $2, $3)", [user.username, code, expiresAt]);
-
   try {
     await sendResetCodeEmail(user.email, code);
   } catch (e) {
     console.error("Failed to send email:", e);
     return res.status(500).json({ error: "Could not send email. Check the server's email setup." });
   }
-
   res.json({ message: "If that account exists, a code has been sent." });
 });
 
-// --- Step 2 of forgot password: verify code and set new password ---
 app.post("/api/reset-password", async (req, res) => {
   const { username, code, newPassword } = req.body;
   if (!username || !code || !newPassword) return res.status(400).json({ error: "Missing fields." });
-
   const userResult = await pool.query("SELECT * FROM users WHERE username = $1 OR email = $1", [username]);
   const user = userResult.rows[0];
   if (!user) return res.status(400).json({ error: "Invalid code." });
-
   const result = await pool.query(
     "SELECT * FROM reset_codes WHERE username = $1 AND code = $2 ORDER BY id DESC LIMIT 1",
     [user.username, code]
@@ -95,39 +81,29 @@ app.post("/api/reset-password", async (req, res) => {
   const record = result.rows[0];
   if (!record) return res.status(400).json({ error: "Invalid code." });
   if (new Date(record.expires_at) < new Date()) return res.status(400).json({ error: "Code has expired. Request a new one." });
-
   const hash = await bcrypt.hash(newPassword, 10);
   await pool.query("UPDATE users SET password_hash = $1 WHERE username = $2", [hash, user.username]);
   await pool.query("DELETE FROM reset_codes WHERE username = $1", [user.username]);
-
   res.json({ message: "Password updated. You can now sign in." });
 });
 
-// --- Admin creates a staff login + staff record together ---
 app.post("/api/create-staff-login", async (req, res) => {
-  const { username, password, staffId, name, baseSalary, paidLeaveQuota, expectedHoursPerDay } = req.body;
+  const { username, password, staffId, name, baseSalary, paidLeaveQuota, expectedHoursPerDay, joinedDate } = req.body;
   if (!username || !password || !staffId || !name || baseSalary == null) {
     return res.status(400).json({ error: "Missing fields." });
   }
-
   const existing = await pool.query("SELECT id FROM users WHERE username = $1", [username]);
   if (existing.rows.length > 0) return res.status(400).json({ error: "That username is already taken." });
-
   const hash = await bcrypt.hash(password, 10);
-  await pool.query("INSERT INTO users (username, password_hash, role, staff_id) VALUES ($1, $2, 'staff', $3)", [
-    username,
-    hash,
-    staffId,
-  ]);
+  await pool.query("INSERT INTO users (username, password_hash, role, staff_id) VALUES ($1, $2, 'staff', $3)", [username, hash, staffId]);
   await pool.query(
-    "INSERT INTO staff (id, name, base_salary, paid_leave_quota, expected_hours_per_day) VALUES ($1, $2, $3, $4, $5)",
-    [staffId, name, baseSalary, paidLeaveQuota ?? 2, expectedHoursPerDay ?? 8]
+    "INSERT INTO staff (id, name, base_salary, paid_leave_quota, expected_hours_per_day, joined_date) VALUES ($1, $2, $3, $4, $5, $6)",
+    [staffId, name, baseSalary, paidLeaveQuota ?? 2, expectedHoursPerDay ?? 8, joinedDate || new Date().toISOString().slice(0, 10)]
   );
   await logAction(req, "staff_created", { name, username });
   res.json({ message: "Staff login created." });
 });
 
-// --- Staff records ---
 app.get("/api/me", async (req, res) => {
   const { username } = req.query;
   if (!username) return res.status(400).json({ error: "Missing username." });
@@ -144,6 +120,21 @@ app.delete("/api/staff/:id", async (req, res) => {
   res.json({ message: "Staff removed." });
 });
 
+app.put("/api/staff/:id", async (req, res) => {
+  const { baseSalary, paidLeaveQuota, expectedHoursPerDay, joinedDate } = req.body;
+  await pool.query(
+    `UPDATE staff SET
+       base_salary = COALESCE($1, base_salary),
+       paid_leave_quota = COALESCE($2, paid_leave_quota),
+       expected_hours_per_day = COALESCE($3, expected_hours_per_day),
+       joined_date = COALESCE($4, joined_date)
+     WHERE id = $5`,
+    [baseSalary ?? null, paidLeaveQuota ?? null, expectedHoursPerDay ?? null, joinedDate || null, req.params.id]
+  );
+  await logAction(req, "staff_updated", { id: req.params.id });
+  res.json({ message: "Staff updated." });
+});
+
 app.get("/api/staff", async (req, res) => {
   const result = await pool.query("SELECT * FROM staff");
   const staff = {};
@@ -153,25 +144,19 @@ app.get("/api/staff", async (req, res) => {
       baseSalary: Number(row.base_salary),
       paidLeaveQuota: row.paid_leave_quota,
       expectedHoursPerDay: Number(row.expected_hours_per_day),
+      joinedDate: row.joined_date ? row.joined_date.toISOString().slice(0, 10) : null,
     };
   }
   res.json(staff);
 });
 
-// --- Inventory ---
 app.get("/api/items", async (req, res) => {
   const result = await pool.query("SELECT * FROM items ORDER BY date DESC, id DESC");
   const items = result.rows.map((r) => ({
-    id: r.id,
-    name: r.name,
-    qty: r.qty,
-    costPrice: Number(r.cost_price),
+    id: r.id, name: r.name, qty: r.qty, costPrice: Number(r.cost_price),
     sellingPrice: r.selling_price != null ? Number(r.selling_price) : null,
-    supplier: r.supplier,
-    date: r.date.toISOString().slice(0, 10),
-    lowStockThreshold: r.low_stock_threshold,
-    paid: r.paid,
-    barcode: r.barcode,
+    supplier: r.supplier, date: r.date.toISOString().slice(0, 10),
+    lowStockThreshold: r.low_stock_threshold, paid: r.paid, barcode: r.barcode,
   }));
   res.json(items);
 });
@@ -189,11 +174,7 @@ app.post("/api/items", async (req, res) => {
 app.put("/api/items/:id", async (req, res) => {
   const { qty, paid, lowStockThreshold } = req.body;
   await pool.query(
-    `UPDATE items SET
-       qty = COALESCE($1, qty),
-       paid = COALESCE($2, paid),
-       low_stock_threshold = COALESCE($3, low_stock_threshold)
-     WHERE id = $4`,
+    `UPDATE items SET qty = COALESCE($1, qty), paid = COALESCE($2, paid), low_stock_threshold = COALESCE($3, low_stock_threshold) WHERE id = $4`,
     [qty ?? null, paid ?? null, lowStockThreshold ?? null, req.params.id]
   );
   res.json({ message: "Item updated." });
@@ -205,18 +186,11 @@ app.delete("/api/items/:id", async (req, res) => {
   res.json({ message: "Item removed." });
 });
 
-// --- Sales / billing (deducts stock automatically if sold from inventory) ---
 app.get("/api/sales", async (req, res) => {
   const result = await pool.query("SELECT * FROM sales ORDER BY date DESC, id DESC");
   const sales = result.rows.map((r) => ({
-    id: r.id,
-    itemId: r.item_id,
-    itemName: r.item_name,
-    qty: r.qty,
-    unitPrice: Number(r.unit_price),
-    total: Number(r.total),
-    customerName: r.customer_name,
-    customerPhone: r.customer_phone,
+    id: r.id, itemId: r.item_id, itemName: r.item_name, qty: r.qty, unitPrice: Number(r.unit_price),
+    total: Number(r.total), customerName: r.customer_name, customerPhone: r.customer_phone,
     date: r.date.toISOString().slice(0, 10),
   }));
   res.json(sales);
@@ -241,15 +215,10 @@ app.post("/api/sales", async (req, res) => {
   res.json({ message: "Sale recorded." });
 });
 
-// --- Expenses ---
 app.get("/api/expenses", async (req, res) => {
   const result = await pool.query("SELECT * FROM expenses ORDER BY date DESC, id DESC");
   const expenses = result.rows.map((r) => ({
-    id: r.id,
-    category: r.category,
-    amount: Number(r.amount),
-    date: r.date.toISOString().slice(0, 10),
-    notes: r.notes,
+    id: r.id, category: r.category, amount: Number(r.amount), date: r.date.toISOString().slice(0, 10), notes: r.notes,
   }));
   res.json(expenses);
 });
@@ -257,13 +226,7 @@ app.get("/api/expenses", async (req, res) => {
 app.post("/api/expenses", async (req, res) => {
   const { id, category, amount, date, notes } = req.body;
   if (!id || !category || amount == null || !date) return res.status(400).json({ error: "Missing fields." });
-  await pool.query("INSERT INTO expenses (id, category, amount, date, notes) VALUES ($1,$2,$3,$4,$5)", [
-    id,
-    category,
-    amount,
-    date,
-    notes || null,
-  ]);
+  await pool.query("INSERT INTO expenses (id, category, amount, date, notes) VALUES ($1,$2,$3,$4,$5)", [id, category, amount, date, notes || null]);
   await logAction(req, "expense_added", { category, amount });
   res.json({ message: "Expense added." });
 });
@@ -274,7 +237,6 @@ app.delete("/api/expenses/:id", async (req, res) => {
   res.json({ message: "Expense removed." });
 });
 
-// --- Settings (logo, shop display name) ---
 app.get("/api/settings", async (req, res) => {
   const result = await pool.query("SELECT * FROM settings");
   const settings = {};
@@ -286,45 +248,34 @@ app.post("/api/settings", async (req, res) => {
   const { key, value } = req.body;
   if (!key) return res.status(400).json({ error: "Missing key." });
   await pool.query(
-    `INSERT INTO settings (key, value) VALUES ($1, $2)
-     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    `INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
     [key, value ?? null]
   );
   await logAction(req, "setting_changed", { key });
   res.json({ message: "Setting saved." });
 });
 
-// --- Change password (while logged in, requires current password) ---
 app.post("/api/change-password", async (req, res) => {
   const { username, currentPassword, newPassword } = req.body;
   if (!username || !currentPassword || !newPassword) return res.status(400).json({ error: "Missing fields." });
-
   const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
   const user = result.rows[0];
   if (!user) return res.status(400).json({ error: "Account not found." });
-
   const ok = await bcrypt.compare(currentPassword, user.password_hash);
   if (!ok) return res.status(401).json({ error: "Current password is incorrect." });
-
   const hash = await bcrypt.hash(newPassword, 10);
   await pool.query("UPDATE users SET password_hash = $1 WHERE username = $2", [hash, username]);
   await logAction(req, "password_changed", { username });
   res.json({ message: "Password changed." });
 });
 
-// --- Rentals (computers rented out and returned) ---
 app.get("/api/rentals", async (req, res) => {
   const result = await pool.query("SELECT * FROM rentals ORDER BY rent_out_date DESC, id DESC");
   const rentals = result.rows.map((r) => ({
-    id: r.id,
-    itemName: r.item_name,
-    customerName: r.customer_name,
-    customerPhone: r.customer_phone,
+    id: r.id, itemName: r.item_name, customerName: r.customer_name, customerPhone: r.customer_phone,
     rentOutDate: r.rent_out_date.toISOString().slice(0, 10),
     returnDate: r.return_date ? r.return_date.toISOString().slice(0, 10) : null,
-    amountPaid: Number(r.amount_paid),
-    status: r.status,
-    notes: r.notes,
+    amountPaid: Number(r.amount_paid), status: r.status, notes: r.notes,
   }));
   res.json(rentals);
 });
@@ -343,36 +294,14 @@ app.post("/api/rentals", async (req, res) => {
 app.put("/api/rentals/:id", async (req, res) => {
   const { returnDate, amountPaid, status, notes } = req.body;
   await pool.query(
-    `UPDATE rentals SET
-       return_date = COALESCE($1, return_date),
-       amount_paid = COALESCE($2, amount_paid),
-       status = COALESCE($3, status),
-       notes = COALESCE($4, notes)
-     WHERE id = $5`,
+    `UPDATE rentals SET return_date = COALESCE($1, return_date), amount_paid = COALESCE($2, amount_paid), status = COALESCE($3, status), notes = COALESCE($4, notes) WHERE id = $5`,
     [returnDate || null, amountPaid ?? null, status || null, notes ?? null, req.params.id]
   );
   await logAction(req, "rental_updated", { id: req.params.id, status });
   res.json({ message: "Rental updated." });
 });
 
-// --- Time clock (check-in / check-out, including mid-day breaks) ---
-app.post("/api/time-log", async (req, res) => {
-  const { staffId, type } = req.body;
-  if (!staffId || !["in", "out"].includes(type)) return res.status(400).json({ error: "Missing or invalid fields." });
-  const result = await pool.query(
-    "INSERT INTO time_logs (staff_id, event_type) VALUES ($1, $2) RETURNING logged_at",
-    [staffId, type]
-  );
-  res.json({ loggedAt: result.rows[0].logged_at });
-});
-
-app.get("/api/time-logs", async (req, res) => {
-  const result = await pool.query("SELECT * FROM time_logs ORDER BY logged_at ASC");
-  const logs = result.rows.map((r) => ({ id: r.id, staffId: r.staff_id, type: r.event_type, loggedAt: r.logged_at }));
-  res.json(logs);
-});
-
-// --- Attendance ---
+// --- Attendance (pure manual admin model — no clock-in/out) ---
 app.get("/api/attendance", async (req, res) => {
   const result = await pool.query("SELECT * FROM attendance");
   const attendance = {};
@@ -386,89 +315,43 @@ app.get("/api/attendance", async (req, res) => {
 });
 
 app.post("/api/attendance", async (req, res) => {
-  const { staffId, date, status } = req.body;
+  const { staffId, date, status, hours } = req.body;
   if (!staffId || !date) return res.status(400).json({ error: "Missing fields." });
   if (!status) {
-    await pool.query(
-      "UPDATE attendance SET status = '' WHERE staff_id = $1 AND date = $2",
-      [staffId, date]
-    );
-    await pool.query(
-      "DELETE FROM attendance WHERE staff_id = $1 AND date = $2 AND (status = '' OR status IS NULL) AND hours_override IS NULL",
-      [staffId, date]
-    );
-    return res.json({ message: "Attendance override cleared." });
+    await pool.query("DELETE FROM attendance WHERE staff_id = $1 AND date = $2", [staffId, date]);
+    return res.json({ message: "Attendance cleared." });
   }
   await pool.query(
-    `INSERT INTO attendance (staff_id, date, status) VALUES ($1, $2, $3)
-     ON CONFLICT (staff_id, date) DO UPDATE SET status = EXCLUDED.status`,
-    [staffId, date, status]
+    `INSERT INTO attendance (staff_id, date, status, hours_override) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (staff_id, date) DO UPDATE SET status = EXCLUDED.status, hours_override = EXCLUDED.hours_override`,
+    [staffId, date, status, status === "present" ? hours ?? null : null]
   );
   if (status === "absent") {
     const staffResult = await pool.query("SELECT name FROM staff WHERE id = $1", [staffId]);
     if (staffResult.rows[0]) notifyAdminStaffAbsent(staffResult.rows[0].name, date);
   }
-  await logAction(req, "attendance_marked", { staffId, date, status });
+  await logAction(req, "attendance_marked", { staffId, date, status, hours });
   res.json({ message: "Attendance updated." });
 });
 
-// Lets the admin manually set exact hours worked for one day (e.g. staff
-// forgot to clock in/out, or worked a partial day) — independent of the
-// full-day status override above.
-app.post("/api/attendance-hours", async (req, res) => {
-  const { staffId, date, hours } = req.body;
-  if (!staffId || !date) return res.status(400).json({ error: "Missing fields." });
-
-  if (hours === null || hours === undefined || hours === "") {
-    await pool.query("UPDATE attendance SET hours_override = NULL WHERE staff_id = $1 AND date = $2", [staffId, date]);
-    await pool.query(
-      "DELETE FROM attendance WHERE staff_id = $1 AND date = $2 AND (status = '' OR status IS NULL) AND hours_override IS NULL",
-      [staffId, date]
-    );
-    return res.json({ message: "Hours override cleared." });
-  }
-
-  await pool.query(
-    `INSERT INTO attendance (staff_id, date, status, hours_override) VALUES ($1, $2, '', $3)
-     ON CONFLICT (staff_id, date) DO UPDATE SET hours_override = EXCLUDED.hours_override`,
-    [staffId, date, Number(hours)]
-  );
-  await logAction(req, "attendance_hours_set", { staffId, date, hours });
-  res.json({ message: "Hours saved." });
-});
-
-// --- Repair / service jobs ---
 app.get("/api/repairs", async (req, res) => {
   const result = await pool.query("SELECT * FROM repairs ORDER BY date_in DESC, id DESC");
   const repairs = result.rows.map((r) => ({
-    id: r.id,
-    customerName: r.customer_name,
-    customerPhone: r.customer_phone,
-    device: r.device,
-    issue: r.issue,
-    status: r.status,
-    cost: r.cost != null ? Number(r.cost) : null,
+    id: r.id, customerName: r.customer_name, customerPhone: r.customer_phone, device: r.device, issue: r.issue,
+    status: r.status, cost: r.cost != null ? Number(r.cost) : null,
     dateIn: r.date_in.toISOString().slice(0, 10),
     dateOut: r.date_out ? r.date_out.toISOString().slice(0, 10) : null,
-    warrantyDays: r.warranty_days,
-    notes: r.notes,
+    warrantyDays: r.warranty_days, notes: r.notes,
   }));
   res.json(repairs);
 });
 
-// --- Public repair tracking (no login required) ---
 app.get("/api/track", async (req, res) => {
   const { phone } = req.query;
   if (!phone) return res.status(400).json({ error: "Phone number required." });
-  const result = await pool.query(
-    "SELECT * FROM repairs WHERE customer_phone = $1 ORDER BY date_in DESC",
-    [phone.trim()]
-  );
+  const result = await pool.query("SELECT * FROM repairs WHERE customer_phone = $1 ORDER BY date_in DESC", [phone.trim()]);
   const repairs = result.rows.map((r) => ({
-    device: r.device,
-    issue: r.issue,
-    status: r.status,
-    cost: r.cost != null ? Number(r.cost) : null,
+    device: r.device, issue: r.issue, status: r.status, cost: r.cost != null ? Number(r.cost) : null,
     dateIn: r.date_in.toISOString().slice(0, 10),
     dateOut: r.date_out ? r.date_out.toISOString().slice(0, 10) : null,
   }));
@@ -479,8 +362,7 @@ app.post("/api/repairs", async (req, res) => {
   const { id, customerName, customerPhone, device, issue, dateIn } = req.body;
   if (!id || !customerName || !device || !dateIn) return res.status(400).json({ error: "Missing fields." });
   await pool.query(
-    `INSERT INTO repairs (id, customer_name, customer_phone, device, issue, status, date_in)
-     VALUES ($1,$2,$3,$4,$5,'received',$6)`,
+    `INSERT INTO repairs (id, customer_name, customer_phone, device, issue, status, date_in) VALUES ($1,$2,$3,$4,$5,'received',$6)`,
     [id, customerName, customerPhone || null, device, issue || null, dateIn]
   );
   await logAction(req, "repair_added", { customerName, device });
@@ -490,14 +372,7 @@ app.post("/api/repairs", async (req, res) => {
 app.put("/api/repairs/:id", async (req, res) => {
   const { status, cost, dateOut, notes, warrantyDays } = req.body;
   const result = await pool.query(
-    `UPDATE repairs SET
-       status = COALESCE($1, status),
-       cost = COALESCE($2, cost),
-       date_out = COALESCE($3, date_out),
-       notes = COALESCE($4, notes),
-       warranty_days = COALESCE($5, warranty_days)
-     WHERE id = $6
-     RETURNING *`,
+    `UPDATE repairs SET status = COALESCE($1, status), cost = COALESCE($2, cost), date_out = COALESCE($3, date_out), notes = COALESCE($4, notes), warranty_days = COALESCE($5, warranty_days) WHERE id = $6 RETURNING *`,
     [status || null, cost ?? null, dateOut || null, notes ?? null, warrantyDays ?? null, req.params.id]
   );
   const repair = result.rows[0];
@@ -508,7 +383,6 @@ app.put("/api/repairs/:id", async (req, res) => {
   res.json({ message: "Repair job updated." });
 });
 
-// --- Backup & restore: exports/imports every table as one JSON file ---
 const BACKUP_TABLES = ["users", "staff", "items", "attendance", "time_logs", "repairs", "sales", "expenses", "settings", "rentals"];
 
 async function buildBackup() {
@@ -541,7 +415,6 @@ app.get("/api/backup", async (req, res) => {
 app.post("/api/restore", async (req, res) => {
   const { tables } = req.body;
   if (!tables) return res.status(400).json({ error: "Invalid backup file." });
-
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -554,10 +427,7 @@ app.post("/api/restore", async (req, res) => {
         const columns = Object.keys(row);
         const values = Object.values(row);
         const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ");
-        await client.query(
-          `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`,
-          values
-        );
+        await client.query(`INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`, values);
       }
     }
     await client.query("COMMIT");
@@ -582,20 +452,14 @@ app.get("/api/backup-list", async (req, res) => {
   }
 });
 
-// --- Audit log ---
 app.get("/api/audit-logs", async (req, res) => {
   const result = await pool.query("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200");
   const logs = result.rows.map((r) => ({
-    id: r.id,
-    actor: r.actor,
-    action: r.action,
-    details: r.details ? JSON.parse(r.details) : null,
-    createdAt: r.created_at,
+    id: r.id, actor: r.actor, action: r.action, details: r.details ? JSON.parse(r.details) : null, createdAt: r.created_at,
   }));
   res.json(logs);
 });
 
-// --- Automated monthly email report to the admin ---
 async function buildMonthlyReportHtml() {
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -608,10 +472,7 @@ async function buildMonthlyReportHtml() {
   const sales = await pool.query("SELECT COALESCE(SUM(total),0) AS total FROM sales WHERE date BETWEEN $1 AND $2", [startDate, endDate]);
   const expenses = await pool.query("SELECT COALESCE(SUM(amount),0) AS total FROM expenses WHERE date BETWEEN $1 AND $2", [startDate, endDate]);
   const purchases = await pool.query("SELECT COALESCE(SUM(qty * cost_price),0) AS total FROM items WHERE date BETWEEN $1 AND $2", [startDate, endDate]);
-  const repairIncome = await pool.query(
-    "SELECT COALESCE(SUM(cost),0) AS total FROM repairs WHERE date_out BETWEEN $1 AND $2",
-    [startDate, endDate]
-  );
+  const repairIncome = await pool.query("SELECT COALESCE(SUM(cost),0) AS total FROM repairs WHERE date_out BETWEEN $1 AND $2", [startDate, endDate]);
   const lowStock = await pool.query("SELECT name, qty FROM items WHERE qty <= low_stock_threshold");
   const openRepairs = await pool.query("SELECT COUNT(*) AS count FROM repairs WHERE status != 'delivered'");
 
@@ -621,7 +482,6 @@ async function buildMonthlyReportHtml() {
   const repairTotal = Number(repairIncome.rows[0].total);
   const income = salesTotal + repairTotal;
   const spend = expensesTotal + purchasesTotal;
-
   const lowStockList = lowStock.rows.map((r) => `<li>${r.name} — ${r.qty} left</li>`).join("");
 
   return {
@@ -642,16 +502,13 @@ async function buildMonthlyReportHtml() {
 async function checkAndSendMonthlyReport() {
   try {
     const today = new Date();
-    if (today.getDate() !== 1) return; // only run on the 1st of the month
-
+    if (today.getDate() !== 1) return;
     const marker = `monthly-report-${today.getFullYear()}-${today.getMonth()}`;
     const already = await pool.query("SELECT value FROM settings WHERE key = $1", [marker]);
-    if (already.rows.length > 0) return; // already sent this month
-
+    if (already.rows.length > 0) return;
     const adminResult = await pool.query("SELECT email FROM users WHERE role = 'admin' AND email IS NOT NULL LIMIT 1");
     const adminEmail = adminResult.rows[0]?.email;
     if (!adminEmail) return;
-
     const { subject, html } = await buildMonthlyReportHtml();
     await sendGenericEmail(adminEmail, subject, html);
     await pool.query("INSERT INTO settings (key, value) VALUES ($1, 'sent') ON CONFLICT (key) DO NOTHING", [marker]);
@@ -664,7 +521,6 @@ async function checkAndSendMonthlyReport() {
 const PORT = process.env.PORT || 4000;
 ensureTables().then(() => {
   app.listen(PORT, () => console.log(`TECSC server running on http://localhost:${PORT}`));
-  // Take a backup immediately on startup, then every 24 hours while the server is running.
   writeBackupToDisk();
   setInterval(writeBackupToDisk, 24 * 60 * 60 * 1000);
   checkAndSendMonthlyReport();
