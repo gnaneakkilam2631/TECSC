@@ -2,13 +2,21 @@ import pg from "pg";
 import dotenv from "dotenv";
 dotenv.config();
 
-export const pool = new pg.Pool({
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  database: process.env.DB_NAME,
-});
+// Render (and most managed Postgres hosts) give you a single DATABASE_URL
+// instead of separate DB_USER/DB_PASSWORD/etc, and require SSL. Locally,
+// your .env keeps using the separate DB_* variables as before.
+export const pool = process.env.DATABASE_URL
+  ? new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    })
+  : new pg.Pool({
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT),
+      database: process.env.DB_NAME,
+    });
 
 export async function ensureTables() {
   await pool.query(`
@@ -38,6 +46,7 @@ export async function ensureTables() {
     );
   `);
   await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS expected_hours_per_day NUMERIC NOT NULL DEFAULT 8;`);
+  await pool.query(`ALTER TABLE staff ADD COLUMN IF NOT EXISTS joined_date DATE NOT NULL DEFAULT CURRENT_DATE;`);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS items (
       id TEXT PRIMARY KEY,
