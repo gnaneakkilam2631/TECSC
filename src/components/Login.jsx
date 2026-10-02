@@ -2,7 +2,7 @@
 import { LogIn, Cpu, AlertCircle, CheckCircle2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { api } from "../lib/api.js";
 
-const API = "http://localhost:4000/api";
+const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 export default function Login({ onLogin }) {
   const [mode, setMode] = useState("login");

@@ -1,8 +1,9 @@
 ﻿// Talks to the real backend (server/index.js) instead of the browser's
 // localStorage, so data is shared across every device that can reach the
-// server.
+// server. VITE_API_URL points at the live Render backend when deployed;
+// locally it falls back to localhost.
 
-const API = "http://localhost:4000/api";
+const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 let currentActor = null;
 export function setActor(username) {
