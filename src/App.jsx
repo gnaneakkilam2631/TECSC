@@ -8,6 +8,23 @@ import Profile from "./components/Profile.jsx";
 import TrackRepair from "./components/TrackRepair.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
 
+function loadStoredSession() {
+  try {
+    const raw = localStorage.getItem("tecsc_session");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadStoredTab() {
+  try {
+    return localStorage.getItem("tecsc_tab") || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const isTrackPage = window.location.pathname.startsWith("/track");
 
@@ -20,8 +37,13 @@ export default function App() {
   const [repairs, setRepairs] = useState([]);
   const [rentals, setRentals] = useState([]);
   const [settings, setSettings] = useState({});
-  const [session, setSession] = useState(null);
-  const [tab, setTab] = useState("dashboard");
+
+  // Restore the logged-in session (and which tab was open) from localStorage
+  // so refreshing the page doesn't log the person out or jump back to the
+  // dashboard — it just reloads whatever page they were already on.
+  const [session, setSession] = useState(() => loadStoredSession());
+  const [tab, setTab] = useState(() => loadStoredTab() || "dashboard");
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [serverError, setServerError] = useState(false);
@@ -68,6 +90,11 @@ export default function App() {
       setLoading(false);
       return;
     }
+    // If a session was restored from localStorage, re-attach the X-Actor
+    // header for audit logging before loading data.
+    if (session) {
+      setActor(session.username);
+    }
     (async () => {
       try {
         await refreshAll();
@@ -77,6 +104,7 @@ export default function App() {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -95,21 +123,45 @@ export default function App() {
     return () => clearInterval(retry);
   }, [serverError]);
 
+  // Keep the current tab saved so a refresh reopens the same page instead
+  // of resetting to the dashboard.
+  useEffect(() => {
+    if (!session) return;
+    try {
+      localStorage.setItem("tecsc_tab", tab);
+    } catch {
+      // ignore storage errors (e.g. private browsing)
+    }
+  }, [tab, session]);
+
   function handleLogin(newSession) {
     setSession(newSession);
     setActor(newSession.username);
-    setTab(newSession.role === "admin" ? "dashboard" : "myattendance");
+    const startTab = newSession.role === "admin" ? "dashboard" : "myattendance";
+    setTab(startTab);
+    try {
+      localStorage.setItem("tecsc_session", JSON.stringify(newSession));
+      localStorage.setItem("tecsc_tab", startTab);
+    } catch {
+      // ignore storage errors
+    }
   }
   function handleLogout() {
     setSession(null);
     setActor(null);
     setMenuOpen(false);
+    try {
+      localStorage.removeItem("tecsc_session");
+      localStorage.removeItem("tecsc_tab");
+    } catch {
+      // ignore storage errors
+    }
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-12">
-        <p style={{ color: "var(--ink-muted)" }}>Loadingâ€¦</p>
+        <p style={{ color: "var(--ink-muted)" }}>Loading…</p>
       </div>
     );
   }
@@ -130,7 +182,7 @@ export default function App() {
     <div className="min-h-screen">
       {serverError && (
         <div className="px-4 py-2 text-center text-xs font-medium" style={{ background: "var(--warn)", color: "#fff" }}>
-          Can't reach the server â€” recent changes may not be saved. Check that the backend is running, then refresh.
+          Can't reach the server — recent changes may not be saved. Check that the backend is running, then refresh.
         </div>
       )}
       <header className="flex items-center justify-between px-5 py-3 row-line gap-3" style={{ background: "var(--surface)" }}>
