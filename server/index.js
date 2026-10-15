@@ -88,20 +88,18 @@ app.post("/api/reset-password", async (req, res) => {
 });
 
 app.post("/api/create-staff-login", async (req, res) => {
-  const { username, password, staffId, name, baseSalary, paidLeaveQuota, expectedHoursPerDay, joinedDate } = req.body;
-  if (!username || !password || !staffId || !name || baseSalary == null) {
+  // Staff are plain records now: no username/password, no login.
+  const { name, baseSalary, paidLeaveQuota, expectedHoursPerDay, joinedDate } = req.body;
+  const staffId = req.body.staffId || "s" + Date.now();
+  if (!name || baseSalary == null) {
     return res.status(400).json({ error: "Missing fields." });
   }
-  const existing = await pool.query("SELECT id FROM users WHERE username = $1", [username]);
-  if (existing.rows.length > 0) return res.status(400).json({ error: "That username is already taken." });
-  const hash = await bcrypt.hash(password, 10);
-  await pool.query("INSERT INTO users (username, password_hash, role, staff_id) VALUES ($1, $2, 'staff', $3)", [username, hash, staffId]);
   await pool.query(
     "INSERT INTO staff (id, name, base_salary, paid_leave_quota, expected_hours_per_day, joined_date) VALUES ($1, $2, $3, $4, $5, $6)",
-    [staffId, name, baseSalary, paidLeaveQuota ?? 2, expectedHoursPerDay ?? 8, joinedDate || new Date().toISOString().slice(0, 10)]
+    [staffId, name, baseSalary, paidLeaveQuota ?? 2, expectedHoursPerDay ?? 9, joinedDate || new Date().toISOString().slice(0, 10)]
   );
-  await logAction(req, "staff_created", { name, username });
-  res.json({ message: "Staff login created." });
+  await logAction(req, "staff_created", { name });
+  res.json({ message: "Staff added.", id: staffId });
 });
 
 app.get("/api/me", async (req, res) => {

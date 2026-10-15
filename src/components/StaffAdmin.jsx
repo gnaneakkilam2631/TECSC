@@ -1,110 +1,212 @@
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import SectionHeader from "./SectionHeader.jsx";
-import { fmtMoney, uid } from "../lib/utils.js";
+import { Trash2, UserPlus, Pencil, Check, X } from "lucide-react";
 import { api } from "../lib/api.js";
 
-export default function StaffAdmin({ staff, refreshAll }) {
+const API = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+
+async function send(method, path, body) {
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", "X-Actor": "admin" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+export default function StaffAdmin({ staff = {}, refreshAll }) {
   const [form, setForm] = useState({
     name: "",
     baseSalary: "",
-    paidLeaveQuota: 2,
-    expectedHoursPerDay: 9,
-    username: "",
-    password: "",
+    paidLeaveQuota: "2",
+    expectedHoursPerDay: "9",
+    joinedDate: today(),
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmId, setConfirmId] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [editDate, setEditDate] = useState("");
 
-  async function addStaff(e) {
+  async function handleAdd(e) {
     e.preventDefault();
     setError("");
-    if (!form.name || !form.baseSalary || !form.username || !form.password) return;
-
+    if (!form.name.trim() || form.baseSalary === "") {
+      setError("Please enter a name and monthly salary.");
+      return;
+    }
     setBusy(true);
     try {
-      await api.createStaff({
-        username: form.username,
-        password: form.password,
-        staffId: uid("staff"),
-        name: form.name,
+      await send("POST", "/create-staff-login", {
+        name: form.name.trim(),
         baseSalary: Number(form.baseSalary),
-        paidLeaveQuota: Number(form.paidLeaveQuota),
-        expectedHoursPerDay: Number(form.expectedHoursPerDay),
+        paidLeaveQuota: Number(form.paidLeaveQuota || 2),
+        expectedHoursPerDay: Number(form.expectedHoursPerDay || 9),
+        joinedDate: form.joinedDate || today(),
       });
+      setForm({ name: "", baseSalary: "", paidLeaveQuota: "2", expectedHoursPerDay: "9", joinedDate: today() });
       await refreshAll();
-      setForm({ name: "", baseSalary: "", paidLeaveQuota: 2, expectedHoursPerDay: 9, username: "", password: "" });
     } catch (err) {
-      setError(err.message || "Could not add staff.");
+      setError(err.message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function removeStaff(id) {
-    await api.deleteStaff(id);
-    setConfirmDelete(null);
-    await refreshAll();
+  async function handleDelete(id) {
+    try {
+      await api.deleteStaff(id);
+      setConfirmId(null);
+      await refreshAll();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
+  async function saveDate(id) {
+    try {
+      await send("PUT", `/staff/${id}`, { joinedDate: editDate });
+      setEditId(null);
+      await refreshAll();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const list = Object.entries(staff);
+
   return (
-    <div>
-      <SectionHeader title="Staff" sub="Add staff, set their salary, expected hours, and leave allowance, and create their login" />
+    <div className="p-5 max-w-3xl">
+      <h2 className="text-lg font-semibold mb-4">Staff</h2>
+
       <form
-        onSubmit={addStaff}
-        className="flex flex-wrap gap-2 mb-2 p-4"
-        style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}
+        onSubmit={handleAdd}
+        className="p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3"
+        style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}
       >
-        <input className="input px-2 py-1.5 text-sm w-36" placeholder="Full name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <input className="input px-2 py-1.5 text-sm w-32" type="number" placeholder="Monthly salary" value={form.baseSalary} onChange={(e) => setForm({ ...form, baseSalary: e.target.value })} />
-        <input className="input px-2 py-1.5 text-sm w-28" type="number" step="0.5" placeholder="Hours/day" value={form.expectedHoursPerDay} onChange={(e) => setForm({ ...form, expectedHoursPerDay: e.target.value })} />
-        <input className="input px-2 py-1.5 text-sm w-28" type="number" placeholder="Paid leaves/mo" value={form.paidLeaveQuota} onChange={(e) => setForm({ ...form, paidLeaveQuota: e.target.value })} />
-        <input className="input px-2 py-1.5 text-sm w-28" placeholder="Username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} />
-        <input className="input px-2 py-1.5 text-sm w-28" placeholder="Password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-        <button disabled={busy} className="btn btn-accent px-3 py-1.5 text-sm flex items-center gap-1">
-          <Plus size={14} /> {busy ? "Adding…" : "Add staff"}
-        </button>
-      </form>
-      {error && (
-        <p className="text-sm mb-3" style={{ color: "var(--warn)" }}>
-          {error}
-        </p>
-      )}
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6 }}>
-        {Object.keys(staff).length === 0 && (
-          <p className="p-4 text-sm" style={{ color: "var(--ink-muted)" }}>
-            No staff added yet.
-          </p>
+        <div className="sm:col-span-2">
+          <label className="block text-sm mb-1" style={{ color: "var(--ink-muted)" }}>Name</label>
+          <input
+            className="input w-full px-3 py-2 text-sm"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1" style={{ color: "var(--ink-muted)" }}>Monthly salary</label>
+          <input
+            type="number"
+            className="input w-full px-3 py-2 text-sm"
+            value={form.baseSalary}
+            onChange={(e) => setForm({ ...form, baseSalary: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1" style={{ color: "var(--ink-muted)" }}>Paid leave quota (days)</label>
+          <input
+            type="number"
+            className="input w-full px-3 py-2 text-sm"
+            value={form.paidLeaveQuota}
+            onChange={(e) => setForm({ ...form, paidLeaveQuota: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1" style={{ color: "var(--ink-muted)" }}>Expected hours / day</label>
+          <input
+            type="number"
+            className="input w-full px-3 py-2 text-sm"
+            value={form.expectedHoursPerDay}
+            onChange={(e) => setForm({ ...form, expectedHoursPerDay: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-sm mb-1" style={{ color: "var(--ink-muted)" }}>Joined on</label>
+          <input
+            type="date"
+            className="input w-full px-3 py-2 text-sm"
+            value={form.joinedDate}
+            onChange={(e) => setForm({ ...form, joinedDate: e.target.value })}
+          />
+        </div>
+        {error && (
+          <p className="sm:col-span-2 text-sm" style={{ color: "var(--warn)" }}>{error}</p>
         )}
-        {Object.entries(staff).map(([id, s]) => (
-          <div key={id} className="flex items-center justify-between px-4 py-3 row-line text-sm">
-            <span className="font-medium">{s.name}</span>
-            <div className="flex items-center gap-3">
-              <span className="mono" style={{ color: "var(--ink-muted)" }}>
-                {fmtMoney(s.baseSalary)}/mo · {s.expectedHoursPerDay}h/day · {s.paidLeaveQuota} paid leaves
-              </span>
-              {confirmDelete === id ? (
-                <span className="flex items-center gap-2">
-                  <span className="text-xs" style={{ color: "var(--warn)" }}>
-                    Remove {s.name}?
-                  </span>
-                  <button onClick={() => removeStaff(id)} className="btn text-xs px-2 py-1" style={{ background: "var(--warn)", color: "#fff" }}>
-                    Yes
+        <div className="sm:col-span-2">
+          <button type="submit" disabled={busy} className="btn btn-accent px-4 py-2 text-sm flex items-center gap-2">
+            <UserPlus size={15} /> {busy ? "Adding…" : "Add staff"}
+          </button>
+        </div>
+      </form>
+
+      {list.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--ink-muted)" }}>No staff added yet.</p>
+      ) : (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8 }}>
+          {list.map(([id, s], idx) => {
+            const salary = s.baseSalary ?? s.base_salary ?? 0;
+            const hours = s.expectedHoursPerDay ?? s.expected_hours_per_day ?? 9;
+            const joined = (s.joinedDate ?? s.joined_date ?? "").toString().slice(0, 10);
+            return (
+              <div
+                key={id}
+                className={`flex items-center justify-between gap-3 px-4 py-3 ${idx > 0 ? "row-line" : ""}`}
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-sm">{s.name}</p>
+                  <p className="text-xs" style={{ color: "var(--ink-muted)" }}>
+                    ₹{salary}/month · {hours} hrs/day
+                  </p>
+                  {editId === id ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="date"
+                        className="input px-2 py-1 text-xs"
+                        value={editDate}
+                        onChange={(e) => setEditDate(e.target.value)}
+                      />
+                      <button onClick={() => saveDate(id)} style={{ color: "var(--accent)" }}><Check size={15} /></button>
+                      <button onClick={() => setEditId(null)} style={{ color: "var(--ink-muted)" }}><X size={15} /></button>
+                    </div>
+                  ) : (
+                    <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "var(--ink-muted)" }}>
+                      Joined: {joined || "—"}
+                      <button
+                        onClick={() => {
+                          setEditId(id);
+                          setEditDate(joined || today());
+                        }}
+                        title="Edit joined date"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    </p>
+                  )}
+                </div>
+
+                {confirmId === id ? (
+                  <div className="flex items-center gap-2 text-xs flex-shrink-0">
+                    <span>Delete?</span>
+                    <button onClick={() => handleDelete(id)} style={{ color: "var(--warn)" }}>Yes</button>
+                    <button onClick={() => setConfirmId(null)} style={{ color: "var(--ink-muted)" }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmId(id)}
+                    style={{ color: "var(--warn)" }}
+                    className="flex-shrink-0"
+                    title="Delete staff"
+                  >
+                    <Trash2 size={16} />
                   </button>
-                  <button onClick={() => setConfirmDelete(null)} className="btn btn-outline text-xs px-2 py-1">
-                    Cancel
-                  </button>
-                </span>
-              ) : (
-                <button onClick={() => setConfirmDelete(id)} style={{ color: "var(--ink-muted)" }} title="Remove staff">
-                  <Trash2 size={14} />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
